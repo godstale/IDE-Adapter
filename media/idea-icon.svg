@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">
+  <!-- Plug body -->
+  <rect x="5" y="7" width="6" height="5" rx="1" fill="currentColor"/>
+  <!-- Plug prongs -->
+  <rect x="6.5" y="4" width="1.5" height="3" rx="0.5" fill="currentColor"/>
+  <rect x="8" y="4" width="1.5" height="3" rx="0.5" fill="currentColor"/>
+  <!-- Socket circle -->
+  <circle cx="8" cy="13" r="1" fill="currentColor"/>
+  <!-- Signal waves -->
+  <path d="M2 4 Q4 2 6 4" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/>
+  <path d="M10 4 Q12 2 14 4" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/>
+</svg>
