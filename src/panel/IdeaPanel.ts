@@ -47,6 +47,8 @@ export class IdeaPanel {
               type: 'allLogs',
               entries: this.logger.getAll().map(serializeEntry),
             });
+            const panelConfig = vscode.workspace.getConfiguration('idea.panel');
+            this.postMessage({ type: 'panelSettings', autoOpen: panelConfig.get<boolean>('autoOpen', false) });
             break;
           }
           case 'toggleServer':
@@ -56,6 +58,13 @@ export class IdeaPanel {
             if (typeof msg.port === 'number') {
               await this.onApplyPort(msg.port);
             }
+            break;
+          case 'applyAutoOpen':
+            await vscode.workspace.getConfiguration('idea.panel').update(
+              'autoOpen',
+              (msg as { command: string; value: boolean }).value,
+              vscode.ConfigurationTarget.Global,
+            );
             break;
           case 'openProtocol':
             openProtocolViewer(
@@ -268,6 +277,14 @@ export class IdeaPanel {
   </div>
 
   <div class="section">
+    <div class="section-title">Panel</div>
+    <div class="row">
+      <input type="checkbox" id="chk-auto-open">
+      <label class="label" for="chk-auto-open">Auto open on startup</label>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">Developer</div>
     <div class="dev-info">
       <div>godstale@hotmail.com</div>
@@ -299,6 +316,10 @@ export class IdeaPanel {
   });
 
   // ── Settings handlers ───────────────────────────────────────────────────────
+  document.getElementById('chk-auto-open').addEventListener('change', (e) => {
+    vscode.postMessage({ command: 'applyAutoOpen', value: e.target.checked });
+  });
+
   document.getElementById('btn-toggle').addEventListener('click', () => {
     vscode.postMessage({ command: 'toggleServer' });
   });
@@ -407,6 +428,9 @@ export class IdeaPanel {
       case 'allLogs':
         logContainer.innerHTML = '';
         msg.entries.forEach(appendEntry);
+        break;
+      case 'panelSettings':
+        document.getElementById('chk-auto-open').checked = msg.autoOpen;
         break;
     }
   });

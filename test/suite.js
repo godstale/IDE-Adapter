@@ -425,11 +425,12 @@ async function main() {
   section('/app/vscode/nav/definition');
 
   await test('filePath + line + character: IHandler 정의 검색 → types.ts 반환', async () => {
-    // FindHandler.ts line 1 char 9: import { IHandler, ... }
+    // types.ts line 44 (0-indexed): export interface IHandler {
+    //                                                ^ char 17  → IHandler 선언 심볼
     const res = await req('/app/vscode/nav/definition', {
-      filePath:  SRC.findHandler,
-      line:      1,
-      character: 9,
+      filePath:  SRC.types,
+      line:      44,
+      character: 17,
     });
     assertSuccess(res, 'def-IHandler');
     assertHas(res.result, 'locations');
@@ -452,11 +453,12 @@ async function main() {
   });
 
   await test('FindHandler 정의 검색 → FindHandler.ts 반환 + 코드 포함', async () => {
-    // extension.ts line 5 char 9: import { FindHandler } from ...
+    // FindHandler.ts line 10 (0-indexed): export class FindHandler implements IHandler {
+    //                                                   ^ char 13  → FindHandler 클래스 선언
     const res = await req('/app/vscode/nav/definition', {
-      filePath:  SRC.extension,
-      line:      5,
-      character: 9,
+      filePath:  SRC.findHandler,
+      line:      10,
+      character: 13,
     });
     assertSuccess(res, 'def-FindHandler');
     assertTrue(res.result.locations.length > 0, 'FindHandler definition must be found');

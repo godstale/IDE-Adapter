@@ -10,9 +10,8 @@ out/
 
 # 문서
 docs/plan/
-docs/TODO.md
-docs/TODO_History.md
 docs/CHAT_HISTORY.md
+docs/INSTRUCTIONS.md
 
 # 테스트 결과
 test/img/   

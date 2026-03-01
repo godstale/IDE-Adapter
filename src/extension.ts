@@ -75,13 +75,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  // Auto-start
+  // Auto-start server
   const config = vscode.workspace.getConfiguration('idea.server');
   if (config.get<boolean>('autoStart', true)) {
     await startServer();
-    panel?.open(context);
   } else {
     updateStatusBarStopped();
+  }
+  // Auto-open panel (separate setting, default: false)
+  const panelConfig = vscode.workspace.getConfiguration('idea.panel');
+  if (panelConfig.get<boolean>('autoOpen', false)) {
+    panel?.open(context);
   }
 }
 
