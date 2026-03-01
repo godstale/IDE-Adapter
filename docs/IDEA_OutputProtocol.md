@@ -2,6 +2,12 @@
 
 IDEA Extension이 CLI 앱으로 전송하는 메시지 형식 표준.
 
+| 항목 | 값 |
+|------|-----|
+| **Protocol Version** | `v0.1.2` |
+| **App Version** | `v0.1.2` |
+| **최종 수정** | 2026-03-02 |
+
 ---
 
 ## 1. Handshake 응답
@@ -11,12 +17,14 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
 ```json
 {
   "type": "handshake",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "capabilities": [
     "/app/vscode/edit/find",
     "/app/vscode/edit/replace",
     "/app/vscode/nav/definition",
-    "/app/vscode/nav/references"
+    "/app/vscode/nav/references",
+    "/app/vscode/diag/list",
+    "/app/vscode/nav/symbols"
   ],
   "workspaces": [
     "/absolute/path/to/project"
@@ -201,3 +209,85 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
 | `locations[].endLine` | `number` | 참조 끝 라인 (0-indexed) |
 | `locations[].endCharacter` | `number` | 참조 끝 컬럼 (0-indexed) |
 | `totalCount` | `number` | 전체 참조 수 |
+
+---
+
+### `/app/vscode/diag/list`
+
+```json
+{
+  "topic": "/app/vscode/diag/list",
+  "requestId": "uuid",
+  "result": {
+    "diagnostics": [
+      {
+        "filePath": "/absolute/path/to/file.ts",
+        "line": 10,
+        "character": 4,
+        "endLine": 10,
+        "endCharacter": 20,
+        "severity": "error",
+        "message": "Type 'string' is not assignable to type 'number'.",
+        "source": "ts",
+        "code": "2322"
+      }
+    ],
+    "totalCount": 1
+  }
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `diagnostics` | `array` | 진단 항목 목록 |
+| `diagnostics[].filePath` | `string` | 진단 발생 파일 절대 경로 |
+| `diagnostics[].line` | `number` | 시작 라인 (0-indexed) |
+| `diagnostics[].character` | `number` | 시작 컬럼 (0-indexed) |
+| `diagnostics[].endLine` | `number` | 끝 라인 (0-indexed) |
+| `diagnostics[].endCharacter` | `number` | 끝 컬럼 (0-indexed) |
+| `diagnostics[].severity` | `string` | `"error"` \| `"warning"` \| `"information"` \| `"hint"` |
+| `diagnostics[].message` | `string` | 진단 메시지 |
+| `diagnostics[].source` | `string \| null` | 진단 소스 (예: `"ts"`, `"eslint"`) |
+| `diagnostics[].code` | `string \| null` | 진단 코드 (예: `"2322"`) |
+| `totalCount` | `number` | 전체 진단 수 |
+
+---
+
+### `/app/vscode/nav/symbols`
+
+```json
+{
+  "topic": "/app/vscode/nav/symbols",
+  "requestId": "uuid",
+  "result": {
+    "symbols": [
+      {
+        "name": "IHandler",
+        "kind": "interface",
+        "line": 4,
+        "character": 0,
+        "endLine": 6,
+        "endCharacter": 1,
+        "selectionLine": 4,
+        "selectionCharacter": 17,
+        "containerName": null
+      }
+    ],
+    "totalCount": 1
+  }
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `symbols` | `array` | 심볼 항목 목록 |
+| `symbols[].name` | `string` | 심볼 이름 |
+| `symbols[].kind` | `string` | 심볼 종류 (예: `"class"`, `"interface"`, `"function"`, `"variable"`) |
+| `symbols[].line` | `number` | 심볼 범위 시작 라인 (0-indexed) |
+| `symbols[].character` | `number` | 심볼 범위 시작 컬럼 (0-indexed) |
+| `symbols[].endLine` | `number` | 심볼 범위 끝 라인 (0-indexed) |
+| `symbols[].endCharacter` | `number` | 심볼 범위 끝 컬럼 (0-indexed) |
+| `symbols[].selectionLine` | `number` | 심볼 이름 선택 범위 라인 (0-indexed) |
+| `symbols[].selectionCharacter` | `number` | 심볼 이름 선택 범위 컬럼 (0-indexed) |
+| `symbols[].containerName` | `string \| null` | 부모 심볼 이름 (중첩 심볼). 최상위면 `null` |
+| `totalCount` | `number` | 전체 심볼 수 |

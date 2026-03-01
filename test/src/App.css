@@ -1,0 +1,111 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logos {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.title {
+  margin-bottom: 4rem;
+}
+
+.chatbox {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border: 2px solid #ccc;
+  border-radius: 10px;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.chatbox input {
+  width: 100%;
+  max-width: 600px;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.chatbox .buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.chatbox .buttons button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background-color: #6200ea;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.chatbox .buttons button:hover {
+  background-color: #3700b3;
+}
+
+.response {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}

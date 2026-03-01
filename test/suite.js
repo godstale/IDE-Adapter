@@ -644,6 +644,157 @@ async function main() {
   });
 
   // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/diag/list
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/diag/list');
+
+  await test('workspace-wide: diagnostics 배열 + totalCount 반환', async () => {
+    const res = await req('/app/vscode/diag/list', {});
+    assertSuccess(res, 'diag-workspace');
+    assertHas(res.result, 'diagnostics', 'totalCount');
+    assertTrue(Array.isArray(res.result.diagnostics),         'diagnostics must be array');
+    assertTrue(typeof res.result.totalCount === 'number',     'totalCount must be number');
+    assertTrue(res.result.totalCount === res.result.diagnostics.length, 'totalCount must match array length');
+  });
+
+  await test('filePath: 특정 파일 진단 결과만 반환', async () => {
+    const res = await req('/app/vscode/diag/list', { filePath: SRC.types });
+    assertSuccess(res, 'diag-file');
+    assertTrue(Array.isArray(res.result.diagnostics), 'diagnostics must be array');
+    // 결과가 있으면 해당 파일만 포함되는지 확인
+    const normalizedTypes = SRC.types.replace(/\\/g, '/').toLowerCase();
+    for (const d of res.result.diagnostics) {
+      assertTrue(
+        d.filePath.replace(/\\/g, '/').toLowerCase() === normalizedTypes,
+        `all diagnostics must be from types.ts, got: ${d.filePath}`,
+      );
+    }
+  });
+
+  await test('severity: error → error만 반환', async () => {
+    const res = await req('/app/vscode/diag/list', { severity: 'error' });
+    assertSuccess(res, 'diag-error-only');
+    for (const d of res.result.diagnostics) {
+      assertTrue(d.severity === 'error', `severity must be 'error', got '${d.severity}'`);
+    }
+  });
+
+  await test('severity: all (기본값) → 모든 severity 포함', async () => {
+    const resAll      = await req('/app/vscode/diag/list', { severity: 'all' });
+    const resDefault  = await req('/app/vscode/diag/list', {});
+    assertSuccess(resAll,     'diag-all-explicit');
+    assertSuccess(resDefault, 'diag-all-default');
+    assertTrue(
+      resAll.result.totalCount === resDefault.result.totalCount,
+      `severity:'all' should equal default (${resAll.result.totalCount} vs ${resDefault.result.totalCount})`,
+    );
+  });
+
+  await test('diagnostics 구조: 필수 필드 존재 확인', async () => {
+    const res = await req('/app/vscode/diag/list', {});
+    assertSuccess(res, 'diag-structure');
+    if (res.result.diagnostics.length > 0) {
+      const d = res.result.diagnostics[0];
+      assertHas(d, 'filePath', 'line', 'character', 'severity', 'message');
+      assertHas(d, 'endLine', 'endCharacter', 'source', 'code');
+      assertTrue(typeof d.line === 'number',      'd.line must be number');
+      assertTrue(typeof d.character === 'number', 'd.character must be number');
+      assertTrue(typeof d.message === 'string',   'd.message must be string');
+    }
+  });
+
+  await test('invalid severity → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/diag/list', { severity: 'critical' });
+    assertError(res, 'INVALID_REQUEST', 'diag-invalid-severity');
+  });
+
+  await test('non-existent filePath → 빈 배열 반환 (오류 아님)', async () => {
+    const res = await req('/app/vscode/diag/list', {
+      filePath: '/nonexistent/path/to/file_xXx.ts',
+    });
+    assertSuccess(res, 'diag-nonexistent-file');
+    assertTrue(Array.isArray(res.result.diagnostics),     'diagnostics must be array');
+    assertTrue(res.result.diagnostics.length === 0,       'non-existent file must return empty array');
+    assertTrue(res.result.totalCount === 0,               'totalCount must be 0');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/nav/symbols
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/nav/symbols');
+
+  await test('basic: types.ts symbols → 배열 + totalCount > 0', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types });
+    assertSuccess(res, 'sym-basic');
+    assertHas(res.result, 'symbols', 'totalCount');
+    assertTrue(Array.isArray(res.result.symbols),       'symbols must be array');
+    assertTrue(typeof res.result.totalCount === 'number', 'totalCount must be number');
+    assertTrue(res.result.totalCount > 0,               'types.ts must have symbols');
+  });
+
+  await test('result includes IHandler', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types });
+    assertSuccess(res, 'sym-ihandler');
+    const found = res.result.symbols.some((s) => s.name === 'IHandler');
+    assertTrue(found, 'IHandler symbol must be present in types.ts');
+  });
+
+  await test('symbol 구조: 필수 필드 존재 확인', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types });
+    assertSuccess(res, 'sym-structure');
+    assertTrue(res.result.symbols.length > 0, 'symbols must not be empty');
+    const s = res.result.symbols[0];
+    assertHas(s, 'name', 'kind', 'line', 'character', 'endLine', 'endCharacter');
+    assertHas(s, 'selectionLine', 'selectionCharacter', 'containerName');
+    assertTrue(typeof s.name === 'string',          's.name must be string');
+    assertTrue(typeof s.kind === 'string',          's.kind must be string');
+    assertTrue(typeof s.line === 'number',          's.line must be number');
+    assertTrue(typeof s.selectionLine === 'number', 's.selectionLine must be number');
+  });
+
+  await test('query filter: IHandler 관련 심볼만 반환', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types, query: 'IHandler' });
+    assertSuccess(res, 'sym-query');
+    assertTrue(res.result.totalCount > 0, 'query "IHandler" must return results');
+    for (const s of res.result.symbols) {
+      assertTrue(
+        s.name.toLowerCase().includes('ihandler'),
+        `all symbols must match query 'IHandler', got: ${s.name}`,
+      );
+    }
+  });
+
+  await test('query no match → totalCount: 0', async () => {
+    const res = await req('/app/vscode/nav/symbols', {
+      filePath: SRC.types,
+      query: 'xXx_NONEXISTENT_SYMBOL_xXx',
+    });
+    assertSuccess(res, 'sym-query-no-match');
+    assertTrue(res.result.totalCount === 0,         'no match query must return 0');
+    assertTrue(res.result.symbols.length === 0,     'symbols must be empty array');
+  });
+
+  await test('filePath 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/nav/symbols', {});
+    assertError(res, 'INVALID_REQUEST', 'sym-no-filePath');
+  });
+
+  await test('non-string filePath → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: 123 });
+    assertError(res, 'INVALID_REQUEST', 'sym-wrong-type-filePath');
+  });
+
+  await test('non-existent file → 빈 symbols 배열 반환 (오류 아님)', async () => {
+    const res = await req('/app/vscode/nav/symbols', {
+      filePath: '/nonexistent/path/to/file_xXx.ts',
+    });
+    assertSuccess(res, 'sym-nonexistent-file');
+    assertTrue(Array.isArray(res.result.symbols),   'symbols must be array');
+    assertTrue(res.result.symbols.length === 0,     'non-existent file must return empty array');
+    assertTrue(res.result.totalCount === 0,         'totalCount must be 0');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
   //  프로토콜 에러 처리
   // ════════════════════════════════════════════════════════════════════════════
   section('Protocol — 에러 처리');
