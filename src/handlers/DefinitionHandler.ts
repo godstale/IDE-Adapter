@@ -41,8 +41,8 @@ export class DefinitionHandler implements IHandler {
     }
     await Promise.all(openPromises);
 
-    // Wait a short moment for TS language server to parse cross-file definitions
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Wait for TS language server to parse and index the file (especially on first call)
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     const results = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
       'vscode.executeDefinitionProvider',

@@ -87,6 +87,7 @@ const REQ_TIMEOUT_MS = 8000;
 // 일반 요청: topic + params
 function req(topic, params = {}) {
   const requestId = randomUUID();
+  console.log(`       \x1b[90m[requestId] ${requestId}\x1b[0m`);
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pending.delete(requestId);
@@ -104,6 +105,9 @@ function req(topic, params = {}) {
 // 임의 페이로드 전송 (파라미터 누락 에러 케이스용)
 function rawReq(obj) {
   const hasId = typeof obj.requestId === 'string' && obj.requestId.length > 0;
+  if (hasId) {
+    console.log(`       \x1b[90m[requestId] ${obj.requestId}\x1b[0m`);
+  }
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       if (hasId) { pending.delete(obj.requestId); }
@@ -280,13 +284,15 @@ async function main() {
   });
 
   await test('isRegex: false (기본값) → 특수문자 리터럴 처리', async () => {
-    // "class(" 는 리터럴로 취급 → 매치 없어야 함
+    // "class(" 는 리터럴로 취급 → src/ 소스 파일에는 매치 없어야 함
+    // (test/ 파일은 제외: suite.js 자체에 이 패턴이 문자열로 존재)
     const res = await req('/app/vscode/edit/find', {
       pattern: 'class(',
       isRegex: false,
+      include: 'src/**/*.ts',
     });
     assertSuccess(res, 'find-regex-false');
-    assertTrue(res.result.totalCount === 0, 'literal "class(" should not match anything');
+    assertTrue(res.result.totalCount === 0, 'literal "class(" should not match anything in src/');
   });
 
   await test('isCaseSensitive: false (기본값) → 대소문자 무시', async () => {
@@ -301,8 +307,9 @@ async function main() {
   });
 
   await test('isCaseSensitive: true → 대소문자 일치해야 매치', async () => {
-    const exact = await req('/app/vscode/edit/find', { pattern: 'IdeaServer', isCaseSensitive: true });
-    const wrong = await req('/app/vscode/edit/find', { pattern: 'IDEASERVER', isCaseSensitive: true });
+    // src/ 내에서만 검색: test/ 파일(suite.js, TEST_RESULT.txt)에는 'IDEASERVER' 문자열이 존재함
+    const exact = await req('/app/vscode/edit/find', { pattern: 'IdeaServer', isCaseSensitive: true, include: 'src/**/*.ts' });
+    const wrong = await req('/app/vscode/edit/find', { pattern: 'IDEASERVER', isCaseSensitive: true, include: 'src/**/*.ts' });
     assertSuccess(exact, 'find-cs-exact');
     assertSuccess(wrong, 'find-cs-wrong');
     // 정확한 케이스는 잘못된 케이스보다 같거나 많이 매치돼야 함
@@ -319,7 +326,8 @@ async function main() {
   });
 
   await test('매치 없는 pattern → 빈 배열 + totalCount: 0 반환', async () => {
-    const res = await req('/app/vscode/edit/find', { pattern: 'xXx_NONEXISTENT_xXx' });
+    // src/ 내에서만 검색: 패턴 문자열 자체가 test/suite.js 코드에 포함되어 있으므로 제외
+    const res = await req('/app/vscode/edit/find', { pattern: 'xXx_NONEXISTENT_xXx', include: 'src/**/*.ts' });
     assertSuccess(res, 'find-no-match');
     assertTrue(res.result.totalCount === 0,     'totalCount must be 0');
     assertTrue(res.result.matches.length === 0, 'matches must be empty array');
@@ -340,12 +348,14 @@ async function main() {
   // ════════════════════════════════════════════════════════════════════════════
   section('/app/vscode/edit/replace');
 
-  // 프로젝트에 존재하지 않는 안전한 패턴 — 파일이 실제로 수정되지 않음
+  // src/**/*.ts 범위 내에서 존재하지 않는 안전한 패턴 — 파일이 실제로 수정되지 않음
+  // 주의: 아래 상수 자체가 이 파일(suite.js)에 존재하므로 include로 src/만 지정해야 함
   const SAFE_PAT = 'xXx_NONEXISTENT_PATTERN_xXx';
   const SAFE_REP = 'replacement_value';
+  const SAFE_INC = 'src/**/*.ts';
 
   await test('pattern + replacement(필수): 응답 구조 검증 → replacedCount/affectedFiles 반환', async () => {
-    const res = await req('/app/vscode/edit/replace', { pattern: SAFE_PAT, replacement: SAFE_REP });
+    const res = await req('/app/vscode/edit/replace', { pattern: SAFE_PAT, replacement: SAFE_REP, include: SAFE_INC });
     assertSuccess(res, 'replace-basic');
     assertHas(res.result, 'replacedCount', 'affectedFiles');
     assertTrue(typeof res.result.replacedCount === 'number', 'replacedCount must be number');
@@ -356,7 +366,7 @@ async function main() {
 
   await test('include: 대상 파일 glob 지정 → 성공 응답', async () => {
     const res = await req('/app/vscode/edit/replace', {
-      pattern: SAFE_PAT, replacement: SAFE_REP, include: '**/*.ts',
+      pattern: SAFE_PAT, replacement: SAFE_REP, include: SAFE_INC,
     });
     assertSuccess(res, 'replace-include');
     assertHas(res.result, 'replacedCount', 'affectedFiles');
@@ -364,7 +374,7 @@ async function main() {
 
   await test('exclude: 제외 파일 glob 지정 → 성공 응답', async () => {
     const res = await req('/app/vscode/edit/replace', {
-      pattern: SAFE_PAT, replacement: SAFE_REP, exclude: '**/test/**',
+      pattern: SAFE_PAT, replacement: SAFE_REP, include: SAFE_INC, exclude: '**/node_modules/**',
     });
     assertSuccess(res, 'replace-exclude');
     assertHas(res.result, 'replacedCount', 'affectedFiles');
@@ -372,7 +382,7 @@ async function main() {
 
   await test('isRegex: true → 정규식 모드 성공 응답', async () => {
     const res = await req('/app/vscode/edit/replace', {
-      pattern: 'xXx\\d+NONEXISTENT', replacement: SAFE_REP, isRegex: true,
+      pattern: 'xXx\\d+NONEXISTENT', replacement: SAFE_REP, isRegex: true, include: SAFE_INC,
     });
     assertSuccess(res, 'replace-regex');
     assertHas(res.result, 'replacedCount', 'affectedFiles');
@@ -380,7 +390,7 @@ async function main() {
 
   await test('isRegex: false (기본값) → 리터럴 모드 성공 응답', async () => {
     const res = await req('/app/vscode/edit/replace', {
-      pattern: SAFE_PAT, replacement: SAFE_REP, isRegex: false,
+      pattern: SAFE_PAT, replacement: SAFE_REP, isRegex: false, include: SAFE_INC,
     });
     assertSuccess(res, 'replace-no-regex');
     assertHas(res.result, 'replacedCount', 'affectedFiles');
@@ -388,7 +398,7 @@ async function main() {
 
   await test('isCaseSensitive: true → 성공 응답', async () => {
     const res = await req('/app/vscode/edit/replace', {
-      pattern: SAFE_PAT, replacement: SAFE_REP, isCaseSensitive: true,
+      pattern: SAFE_PAT, replacement: SAFE_REP, isCaseSensitive: true, include: SAFE_INC,
     });
     assertSuccess(res, 'replace-cs');
     assertHas(res.result, 'replacedCount', 'affectedFiles');
@@ -396,7 +406,7 @@ async function main() {
 
   await test('isCaseSensitive: false (기본값) → 성공 응답', async () => {
     const res = await req('/app/vscode/edit/replace', {
-      pattern: SAFE_PAT, replacement: SAFE_REP, isCaseSensitive: false,
+      pattern: SAFE_PAT, replacement: SAFE_REP, isCaseSensitive: false, include: SAFE_INC,
     });
     assertSuccess(res, 'replace-ci');
     assertHas(res.result, 'replacedCount', 'affectedFiles');
