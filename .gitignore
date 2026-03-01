@@ -1,0 +1,24 @@
+# VSCode
+node_modules/
+out/
+*.vsix
+.vscode-test/
+.DS_Store
+*.log
+.env
+.vscode/
+
+# 문서
+docs/plan/
+docs/TODO.md
+docs/TODO_History.md
+docs/CHAT_HISTORY.md
+
+# 테스트 결과
+test/img/   
+test/TEST_RESULT.txt
+
+# 기타
+.claude/
+CHAT_HISTORY.md
+test-regex.js

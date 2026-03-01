@@ -1,0 +1,82 @@
+{
+  "name": "idea-adapter",
+  "displayName": "IDEA - IDE Adapter",
+  "description": "Exposes VS Code IDE features to external CLI apps via WebSocket",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "idea-sidebar",
+          "title": "IDEA Adapter",
+          "icon": "media/idea-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "idea-sidebar": [
+        {
+          "type": "tree",
+          "id": "idea.sidebarView",
+          "name": "IDEA Adapter"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "idea.sidebarView",
+        "contents": "[Open IDEA Adapter](command:idea.openPanel)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "idea.toggleServer",
+        "title": "IDEA: Toggle Server"
+      },
+      {
+        "command": "idea.openPanel",
+        "title": "IDEA: Open Panel"
+      }
+    ],
+    "configuration": {
+      "title": "IDEA Adapter",
+      "properties": {
+        "idea.server.port": {
+          "type": "number",
+          "default": 7200,
+          "description": "WebSocket server port for IDEA Adapter"
+        },
+        "idea.server.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the IDEA server when VS Code opens"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
