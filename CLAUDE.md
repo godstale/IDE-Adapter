@@ -60,6 +60,35 @@ activate()
 
 The webview sends `ready` on load; the extension replies with current `serverStatus` + full `allLogs` history.
 
+## Git Workflow
+
+Remote: `git@github.com:godstale/IDE-Adapter.git` (SSH) — 기본 브랜치: `main`
+
+**작업 시작 시**
+```bash
+git checkout main
+git pull
+git checkout -b feature/<feature-name>
+```
+
+**작업 완료 시** (코드 수정 및 검증 후)
+```bash
+git add <files>          # 관련 파일만 명시적으로 스테이징
+git commit -m "feat: ..."
+git push -u origin feature/<feature-name>
+gh pr create             # PR 생성 (머지는 사용자가 직접 처리)
+```
+
+**PR 머지 후**
+```bash
+git checkout main
+git pull
+```
+
+- PR 머지는 항상 사용자가 직접 처리한다.
+- 브랜치명은 `feature/`, `fix/`, `docs/` 접두사를 사용한다.
+- `.gitignore` 제외 항목: `node_modules/`, `out/`, `.claude/`, `docs/CHAT_HISTORY.md`, `docs/TODO*.md`, `.vscode/`
+
 ## Project Management Convention
 
 - When implementing a new feature, update TODO lists before writing code; move completed items to a history file.

@@ -60,6 +60,11 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically start the IDEA server when VS Code opens"
+        },
+        "idea.panel.autoOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically open IDEA Adapter panel when VS Code opens"
         }
       }
     }
