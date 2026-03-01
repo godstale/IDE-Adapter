@@ -61,3 +61,63 @@
 - [x] `src/extension.ts` — 서버 autoStart / 패널 autoOpen 분리
 - [x] `src/panel/IdeaPanel.ts` — Settings 탭 Panel 섹션 + `panelSettings` 메시지 + `applyAutoOpen` 핸들러
 - [x] `test/suite.js` — definition 테스트 위치 수정 (import문 → 선언부 위치로 변경, 워크스페이스 없이도 통과)
+
+---
+
+## 테스트 버그 수정 + DefinitionHandler 개선 — 2026-03-01
+
+- [x] `test/suite.js` — find/replace 패턴이 테스트 파일 자체를 매칭하는 문제: `include: 'src/**/*.ts'` 추가
+- [x] `test/suite.js` — ReplaceHandler가 suite.js를 실제로 수정하는 버그 수정
+- [x] `test/suite.js` — `req()` / `rawReq()` 에 requestId 회색 출력 추가 (extension 로그 매칭용)
+- [x] `src/handlers/DefinitionHandler.ts` — TS 언어 서버 대기 200ms → 1500ms 증가
+
+---
+
+## test/test.js — 대화형 CLI 테스트 도구 — 2026-03-01
+
+- [x] `test/test.js` — `find / replace / def / ref` 명령 구현 (WebSocket 연결, 결과 출력)
+- [x] `--include, --exclude, --regex, --case, --port, --help` 옵션 파싱
+- [x] `def / ref` — 2단계 대화형 (find → readline 번호 선택 → definition/references 요청)
+- [x] `test/HOWTO_TEST.md` — 사용법 문서 작성
+
+---
+
+## Phase 5: DiagnosticHandler + SymbolHandler + 아이콘 변경 — 2026-03-02
+
+- [x] `src/handlers/DiagnosticHandler.ts` — `/app/vscode/diag/list` 구현
+  - `filePath`: `string | string[]` 지원 (단일/복수 파일 동시 진단)
+  - `severity` 필터: `error | warning | information | hint | all`
+  - `showTextDocument` 호출로 언어 서버 분석 트리거 (단일 1500ms, 복수 2000ms 대기)
+  - 상대 경로 자동 해석 (`resolveFilePath()`)
+- [x] `src/handlers/SymbolHandler.ts` — `/app/vscode/nav/symbols` 구현
+  - `DocumentSymbol[]` (계층적) + `SymbolInformation[]` (평탄) 두 형식 자동 처리
+  - `query` 파라미터로 이름 부분 일치 필터링
+  - 상대 경로 자동 해석
+- [x] `src/extension.ts` — DiagnosticHandler, SymbolHandler import + register
+- [x] `media/idea-icon.svg` — 플러그+소켓(side-view) 디자인으로 교체
+- [x] `test/suite.js` — DiagnosticHandler 테스트 섹션 추가
+- [x] `test/suite.js` — SymbolHandler 테스트 섹션 추가
+- [x] `test/test.js` — `diag` / `sym` 명령 추가 (`--severity`, `--query` 옵션)
+- [x] `test/HOWTO_TEST.md` — diag, sym 명령 사용법 추가
+- [x] `docs/IDEA_InputProtocol.md` — 두 토픽 파라미터 문서 추가
+- [x] `docs/IDEA_OutputProtocol.md` — 두 토픽 결과 문서 추가
+- [x] `README.md` — Supported Topics 테이블에 두 토픽 추가
+
+---
+
+## 버전 관리 + 문서 정비 — 2026-03-02
+
+- [x] `docs/IDEA_InputProtocol.md` / `docs/IDEA_OutputProtocol.md` — 프로토콜 버전 `v0.1.2` 기록
+- [x] `README.md` — App Version / Protocol Version 테이블 추가, handshake 예시 버전 갱신
+- [x] `CHANGELOG.md` — `[0.1.2]` 섹션 추가 (`Protocol Version: v0.1.2` 명시)
+- [x] `CLAUDE.md` — 버전 관리 규칙 섹션 추가 (버전 저장 위치, 변경 시 수정 대상 파일, 규칙)
+- [x] `.claude/commands/deploy-package.md` — VSIX 재패키징 슬래시 명령어 생성
+
+---
+
+## Settings UI — Auto start on VS Code startup — 2026-03-02
+
+- [x] `src/panel/IdeaPanel.ts` — Settings > Server 섹션에 "Auto start on VS Code startup" 체크박스 추가
+  - `ready` 시 `idea.server.autoStart` 값 → `serverSettings` 메시지로 웹뷰에 전송
+  - `applyAutoStart` 커맨드 수신 시 `idea.server.autoStart` Global 설정 저장
+  - JS: 체크박스 change 이벤트 핸들러, `serverSettings` 메시지 처리

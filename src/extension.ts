@@ -7,6 +7,8 @@ import { FindHandler } from './handlers/FindHandler.js';
 import { ReplaceHandler } from './handlers/ReplaceHandler.js';
 import { DefinitionHandler } from './handlers/DefinitionHandler.js';
 import { ReferencesHandler } from './handlers/ReferencesHandler.js';
+import { DiagnosticHandler } from './handlers/DiagnosticHandler.js';
+import { SymbolHandler } from './handlers/SymbolHandler.js';
 
 let server: IdeaServer | null = null;
 let statusBarItem: vscode.StatusBarItem | null = null;
@@ -30,6 +32,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registry.register('/app/vscode/edit/replace',    new ReplaceHandler());
   registry.register('/app/vscode/nav/definition',  new DefinitionHandler());
   registry.register('/app/vscode/nav/references',  new ReferencesHandler());
+  registry.register('/app/vscode/diag/list',        new DiagnosticHandler());
+  registry.register('/app/vscode/nav/symbols',      new SymbolHandler());
 
   // Server
   server = new IdeaServer(registry, logger, (port, connections) => {

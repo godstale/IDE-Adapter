@@ -47,6 +47,8 @@ export class IdeaPanel {
               type: 'allLogs',
               entries: this.logger.getAll().map(serializeEntry),
             });
+            const serverConfig = vscode.workspace.getConfiguration('idea.server');
+            this.postMessage({ type: 'serverSettings', autoStart: serverConfig.get<boolean>('autoStart', true) });
             const panelConfig = vscode.workspace.getConfiguration('idea.panel');
             this.postMessage({ type: 'panelSettings', autoOpen: panelConfig.get<boolean>('autoOpen', false) });
             break;
@@ -58,6 +60,13 @@ export class IdeaPanel {
             if (typeof msg.port === 'number') {
               await this.onApplyPort(msg.port);
             }
+            break;
+          case 'applyAutoStart':
+            await vscode.workspace.getConfiguration('idea.server').update(
+              'autoStart',
+              (msg as { command: string; value: boolean }).value,
+              vscode.ConfigurationTarget.Global,
+            );
             break;
           case 'applyAutoOpen':
             await vscode.workspace.getConfiguration('idea.panel').update(
@@ -274,6 +283,10 @@ export class IdeaPanel {
       <input type="number" id="port-input" min="1024" max="65535" value="7200">
       <button class="btn" id="btn-apply-port">Apply</button>
     </div>
+    <div class="row">
+      <input type="checkbox" id="chk-auto-start" checked>
+      <label class="label" for="chk-auto-start">Auto start on VS Code startup</label>
+    </div>
   </div>
 
   <div class="section">
@@ -316,6 +329,10 @@ export class IdeaPanel {
   });
 
   // ── Settings handlers ───────────────────────────────────────────────────────
+  document.getElementById('chk-auto-start').addEventListener('change', (e) => {
+    vscode.postMessage({ command: 'applyAutoStart', value: e.target.checked });
+  });
+
   document.getElementById('chk-auto-open').addEventListener('change', (e) => {
     vscode.postMessage({ command: 'applyAutoOpen', value: e.target.checked });
   });
@@ -428,6 +445,9 @@ export class IdeaPanel {
       case 'allLogs':
         logContainer.innerHTML = '';
         msg.entries.forEach(appendEntry);
+        break;
+      case 'serverSettings':
+        document.getElementById('chk-auto-start').checked = msg.autoStart;
         break;
       case 'panelSettings':
         document.getElementById('chk-auto-open').checked = msg.autoOpen;

@@ -2,7 +2,7 @@
   "name": "ide-adapter",
   "displayName": "IDEA - IDE Adapter",
   "description": "Exposes VS Code IDE features to external CLI apps via WebSocket",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "godstale",
   "license": "MIT",
   "repository": {

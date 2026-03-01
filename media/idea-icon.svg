@@ -1,7 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">
-  <!-- Two round prongs -->
-  <rect x="5" y="1" width="2" height="7" rx="1" fill="currentColor"/>
-  <rect x="9" y="1" width="2" height="7" rx="1" fill="currentColor"/>
-  <!-- Plug body -->
-  <rect x="2" y="6" width="12" height="8" rx="2" fill="currentColor"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+  <!-- Outer Box -->
+  <rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  
+  <!-- Inner Circle -->
+  <circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  
+  <!-- Grounding Notches -->
+  <rect x="7" y="3.5" width="2" height="1.2"/>
+  <rect x="7" y="11.3" width="2" height="1.2"/>
+  
+  <!-- Plug Holes -->
+  <circle cx="5.5" cy="8" r="1.1"/>
+  <circle cx="10.5" cy="8" r="1.1"/>
 </svg>

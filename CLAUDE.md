@@ -85,7 +85,39 @@ git checkout main
 git pull
 ```
 
+- commit 전에 CHANGELOG.md 파일을 업데이트 한다.
+- 주요한 변경사항인 경우 어플리케이션 버전을 증가시킨다.
+- IDEA input/output 프로토콜은 변경시 항상 버전을 증가해야한다.
 - PR 머지는 항상 사용자가 직접 처리한다.
+
+## Version Management
+
+앱 버전과 프로토콜 버전은 항상 함께 관리한다.
+
+### 버전 저장 위치
+
+| 버전 | 위치 |
+|------|------|
+| 앱 버전 | `package.json` → `"version"` |
+| 프로토콜 버전 | `docs/IDEA_InputProtocol.md` / `docs/IDEA_OutputProtocol.md` 상단 버전 테이블 |
+
+### 버전 변경 시 수정 대상 파일
+
+**앱 버전 변경 시** (`package.json` `version` 증가):
+- `package.json` — `"version"` 필드
+- `README.md` — 상단 버전 테이블 (`App Version`)
+- `CHANGELOG.md` — 새 버전 섹션 추가
+
+**프로토콜 변경 시** (파라미터·결과 형식 추가/변경/삭제):
+- `docs/IDEA_InputProtocol.md` — 상단 버전 테이블 (`Protocol Version`, `최종 수정`)
+- `docs/IDEA_OutputProtocol.md` — 상단 버전 테이블 + handshake 예시 `version` 필드
+- `README.md` — 상단 버전 테이블 (`Protocol Version`)
+- `CHANGELOG.md` — 해당 버전 섹션에 `Protocol Version` 명시
+
+### 규칙
+- 앱 버전과 프로토콜 버전은 현재 동일한 값을 사용한다 (예: 둘 다 `v0.1.2`).
+- 프로토콜 변경은 반드시 버전 증가를 동반한다 (하위 호환 변경: patch, 파괴적 변경: minor 이상).
+- 핸들러 추가·삭제·파라미터 변경은 모두 프로토콜 변경으로 간주한다.
 - 브랜치명은 `feature/`, `fix/`, `docs/` 접두사를 사용한다.
 - `.gitignore` 제외 항목: `node_modules/`, `out/`, `.claude/`, `docs/CHAT_HISTORY.md`, `docs/TODO*.md`, `.vscode/`
 
