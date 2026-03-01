@@ -1,7 +1,15 @@
 .vscode/**
 .vscode-test/**
+.claude/**
 src/**
+test/**
+docs/**
 .gitignore
+.eslintrc*
+eslint.config*
 tsconfig.json
 **/*.map
-node_modules/**
+**/*.md
+!README.md
+CLAUDE.md
+GEMINI.md

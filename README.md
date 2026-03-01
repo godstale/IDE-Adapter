@@ -21,6 +21,7 @@ wscat -c ws://localhost:7200
 |---------|---------|-------------|
 | `idea.server.port` | `7200` | WebSocket server port |
 | `idea.server.autoStart` | `true` | Start server when VS Code opens |
+| `idea.panel.autoOpen` | `false` | Open IDEA Adapter panel when VS Code opens |
 
 ## Status Bar
 
