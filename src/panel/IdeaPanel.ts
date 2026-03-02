@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { IdeaLogger, LogEntry } from '../logger/IdeaLogger.js';
 import { openProtocolViewer } from './ProtocolViewer.js';
+import { AuthConfig } from '../protocol/types.js';
 
 // ─── WebviewPanel (editor tab) ────────────────────────────────────────────────
 
@@ -13,6 +14,10 @@ export class IdeaPanel {
     private readonly getServerStatus: () => { running: boolean; port: number; connections: number },
     private readonly onToggleServer: () => Promise<void>,
     private readonly onApplyPort: (port: number) => Promise<void>,
+    private readonly onGetAuthSettings: () => Promise<AuthConfig>,
+    private readonly onApplyAuthEnabled: (enabled: boolean) => Promise<void>,
+    private readonly onRegenerateToken: () => Promise<string>,
+    private readonly onApplyExposeToken: (expose: boolean) => Promise<void>,
   ) {
     // Stream new log entries to the webview in real time
     logger.on('entry', (entry: LogEntry) => {
@@ -38,7 +43,7 @@ export class IdeaPanel {
 
     // Receive messages from the webview
     this.webviewPanel.webview.onDidReceiveMessage(
-      async (msg: { command: string; port?: number }) => {
+      async (msg: { command: string; port?: number; value?: boolean }) => {
         switch (msg.command) {
           case 'ready': {
             const status = this.getServerStatus();
@@ -51,6 +56,13 @@ export class IdeaPanel {
             this.postMessage({ type: 'serverSettings', autoStart: serverConfig.get<boolean>('autoStart', true) });
             const panelConfig = vscode.workspace.getConfiguration('idea.panel');
             this.postMessage({ type: 'panelSettings', autoOpen: panelConfig.get<boolean>('autoOpen', false) });
+            const authConfig = await this.onGetAuthSettings();
+            this.postMessage({
+              type: 'authSettings',
+              enabled: authConfig.enabled,
+              token: authConfig.token,
+              exposeToken: serverConfig.get<boolean>('exposeToken', true),
+            });
             break;
           }
           case 'toggleServer':
@@ -74,6 +86,23 @@ export class IdeaPanel {
               (msg as { command: string; value: boolean }).value,
               vscode.ConfigurationTarget.Global,
             );
+            break;
+          case 'applyAuthEnabled':
+            await this.onApplyAuthEnabled((msg as { command: string; value: boolean }).value);
+            break;
+          case 'regenerateToken': {
+            const newToken = await this.onRegenerateToken();
+            const regen_cfg = vscode.workspace.getConfiguration('idea.server');
+            this.postMessage({
+              type: 'authSettings',
+              enabled: true,
+              token: newToken,
+              exposeToken: regen_cfg.get<boolean>('exposeToken', true),
+            });
+            break;
+          }
+          case 'applyExposeToken':
+            await this.onApplyExposeToken((msg as { command: string; value: boolean }).value);
             break;
           case 'openProtocol':
             openProtocolViewer(
@@ -104,7 +133,7 @@ export class IdeaPanel {
   }
 
   private buildHtml(): string {
-    const version = '0.1.0';
+    const version = '0.1.3';
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -185,6 +214,17 @@ export class IdeaPanel {
     width: 70px;
     font-size: 12px;
   }
+  input[type="text"] {
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, transparent);
+    padding: 3px 6px;
+    border-radius: 2px;
+    font-size: 11px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    flex: 1;
+    min-width: 0;
+  }
   .info-link { color: var(--vscode-textLink-foreground); text-decoration: none; font-size: 12px; }
   .info-link:hover { text-decoration: underline; }
   .dev-info { font-size: 11px; opacity: 0.7; line-height: 1.7; }
@@ -259,7 +299,7 @@ export class IdeaPanel {
     </div>
     <div class="row">
       <span class="label">Protocol</span>
-      <span class="value">0.1.0</span>
+      <span class="value">0.1.3</span>
     </div>
     <div class="row" style="gap: 6px;">
       <button class="btn secondary" id="btn-input-proto">Input Protocol</button>
@@ -286,6 +326,24 @@ export class IdeaPanel {
     <div class="row">
       <input type="checkbox" id="chk-auto-start" checked>
       <label class="label" for="chk-auto-start">Auto start on VS Code startup</label>
+    </div>
+  </div>
+
+  <div class="section" id="section-auth">
+    <div class="section-title">인증</div>
+    <div class="row">
+      <input type="checkbox" id="chk-auth-enabled" checked>
+      <label class="label" for="chk-auth-enabled">토큰 인증 사용</label>
+    </div>
+    <div class="row" id="row-token" style="display:none;">
+      <span class="label" style="flex-shrink:0;">Token</span>
+      <input type="text" id="token-display" readonly placeholder="(생성 중...)">
+      <button class="btn secondary" id="btn-copy-token">복사</button>
+      <button class="btn secondary" id="btn-regen-token">재생성</button>
+    </div>
+    <div class="row" id="row-expose-token" style="display:none;">
+      <input type="checkbox" id="chk-expose-token" checked>
+      <label class="label" for="chk-expose-token">settings.json 에 노출 (CLI 자동 인식)</label>
     </div>
   </div>
 
@@ -359,6 +417,48 @@ export class IdeaPanel {
   document.getElementById('btn-clear-logs').addEventListener('click', () => {
     document.getElementById('log-container').innerHTML = '';
   });
+
+  // ── Auth handlers ───────────────────────────────────────────────────────────
+  document.getElementById('chk-auth-enabled').addEventListener('change', (e) => {
+    vscode.postMessage({ command: 'applyAuthEnabled', value: e.target.checked });
+    applyAuthRowVisibility(e.target.checked);
+  });
+
+  document.getElementById('btn-copy-token').addEventListener('click', () => {
+    const token = document.getElementById('token-display').value;
+    if (token) {
+      navigator.clipboard.writeText(token).then(() => {
+        const btn = document.getElementById('btn-copy-token');
+        const prev = btn.textContent;
+        btn.textContent = '복사됨';
+        setTimeout(() => { btn.textContent = prev; }, 1500);
+      });
+    }
+  });
+
+  document.getElementById('btn-regen-token').addEventListener('click', () => {
+    if (confirm('토큰을 재생성하면 기존 클라이언트의 연결이 끊어질 수 있습니다. 계속하시겠습니까?')) {
+      vscode.postMessage({ command: 'regenerateToken' });
+    }
+  });
+
+  document.getElementById('chk-expose-token').addEventListener('change', (e) => {
+    vscode.postMessage({ command: 'applyExposeToken', value: e.target.checked });
+  });
+
+  function applyAuthRowVisibility(enabled) {
+    const rowToken  = document.getElementById('row-token');
+    const rowExpose = document.getElementById('row-expose-token');
+    rowToken.style.display  = enabled ? 'flex' : 'none';
+    rowExpose.style.display = enabled ? 'flex' : 'none';
+  }
+
+  function applyAuthSettings(enabled, token, exposeToken) {
+    document.getElementById('chk-auth-enabled').checked = enabled;
+    document.getElementById('token-display').value = token || '';
+    document.getElementById('chk-expose-token').checked = exposeToken !== false;
+    applyAuthRowVisibility(enabled);
+  }
 
   // ── Status update ───────────────────────────────────────────────────────────
   function applyStatus(running, port, connections) {
@@ -451,6 +551,9 @@ export class IdeaPanel {
         break;
       case 'panelSettings':
         document.getElementById('chk-auto-open').checked = msg.autoOpen;
+        break;
+      case 'authSettings':
+        applyAuthSettings(msg.enabled, msg.token, msg.exposeToken);
         break;
     }
   });

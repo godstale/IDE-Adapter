@@ -21,6 +21,13 @@ function App() {
     })
   }
 
+  const handleCustomMessage = async () => {
+    setChatResponse('') // Clear previous response
+    await streamChatResponse(userMessage, (message) => {
+      setChatResponse((prev) => prev + message)
+    })
+  }
+
   return (
     <>
       <div className="logos">

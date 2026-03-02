@@ -1,12 +1,21 @@
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface AuthConfig {
+  enabled: boolean;
+  token: string;  // 빈 문자열 = 미설정
+}
+
 // ─── Handshake ────────────────────────────────────────────────────────────────
 
 export interface ClientHandshake {
   type: 'handshake';
+  token?: string;  // 인증 필요 시 필수
 }
 
 export interface ServerHandshake {
   type: 'handshake';
   version: string;
+  authRequired: boolean;
   capabilities: string[];
   workspaces: string[];
 }

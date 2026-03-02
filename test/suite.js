@@ -3,42 +3,51 @@
  * IDEA Adapter — Full Protocol Test Suite
  *
  * Usage:
- *   node test/suite.js [port]       (default: 7200)
+ *   node test/suite.js [port]       (default: .vscode/settings.json → idea.server.port → 7200)
  *
- * 4개 토픽 전체 + 파라미터별 세부 케이스 + 프로토콜 에러 처리 테스트.
+ * 포트와 인증 토큰은 .vscode/settings.json에서 자동으로 읽어옵니다.
+ * 네비게이션 테스트는 test/src/stub.ts를 사용하므로 어느 워크스페이스에서도 동작합니다.
  *
  * Prerequisite:
  *   - VS Code에서 F5 로 Extension Development Host 실행
- *   - 워크스페이스 = IDEA Adapter 프로젝트 루트 (cwd)
+ *   - 워크스페이스에 test/ 폴더가 포함되어 있을 것
  */
 'use strict';
 
 const WebSocket = require('ws');
 const { randomUUID } = require('crypto');
 const path = require('path');
+const fs = require('fs');
+
+// ─── Settings.json 자동 읽기 ────────────────────────────────────────────────────
+
+function readWorkspaceSettings() {
+  const settingsPath = path.join(__dirname, '..', '.vscode', 'settings.json');
+  try {
+    let raw = fs.readFileSync(settingsPath, 'utf8');
+    // 기본적인 JSONC 처리 (// 주석 및 trailing comma 제거)
+    raw = raw.replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1');
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
-const PORT      = parseInt(process.argv[2] ?? '7200', 10);
-const WORKSPACE = process.cwd(); // navigation 테스트용 파일 경로 구성에만 사용
+const settings = readWorkspaceSettings();
+const PORT  = parseInt(process.argv[2] ?? settings['idea.server.port'] ?? '7200', 10);
+const TOKEN = settings['idea.server.authToken'] ?? '';
 
-// Navigation 테스트에 사용할 소스 파일 (워크스페이스 내 고정 경로)
+// Navigation 테스트에 사용할 소스 파일 (test/src/ 안의 스텁 파일 — 워크스페이스 독립)
+//
+//   stub.ts 심볼 위치 (0-indexed):
+//   Line  2, char 17 → IStubService 인터페이스 선언
+//   Line  7, char 13 → StubServiceError 클래스 선언
+//   Line 11, char 13 → StubServiceImpl 클래스 선언
+//   Line 21, char 16 → createStubService 함수 선언
 const SRC = {
-  // FindHandler.ts
-  //   line 1 (0-indexed): import { IHandler, HandlerError } from '../protocol/types.js';
-  //                                  ^ char 9  → IHandler 심볼
-  findHandler: path.join(WORKSPACE, 'src', 'handlers', 'FindHandler.ts'),
-
-  // extension.ts
-  //   line 5 (0-indexed): import { FindHandler } from './handlers/FindHandler.js';
-  //                                  ^ char 9  → FindHandler 심볼
-  extension: path.join(WORKSPACE, 'src', 'extension.ts'),
-
-  // types.ts
-  //   line  0 (0-indexed): // ─── Handshake ─── (주석, 정의 없음)
-  //   line 44 (0-indexed): export interface IHandler {
-  //                                          ^ char 17 → IHandler 선언
-  types: path.join(WORKSPACE, 'src', 'protocol', 'types.ts'),
+  stub: path.join(__dirname, 'src', 'stub.ts'),
 };
 
 // ─── WebSocket 연결 ────────────────────────────────────────────────────────────
@@ -56,11 +65,16 @@ async function connectAndHandshake() {
   });
 
   // 단일 메시지 핸들러 등록 (handshake + 이후 모든 응답)
-  const hsPromise = new Promise((resolve) => {
+  const hsPromise = new Promise((resolve, reject) => {
     ws.on('message', (raw) => {
       const msg = JSON.parse(raw.toString());
 
       if (msg.type === 'handshake') {
+        if (msg.error) {
+          ws.close();
+          reject(new Error(`Handshake failed: [${msg.error.code}] ${msg.error.message}`));
+          return;
+        }
         resolve(msg);
         return;
       }
@@ -78,7 +92,8 @@ async function connectAndHandshake() {
     });
   });
 
-  ws.send(JSON.stringify({ type: 'handshake' }));
+  const hsMsg = TOKEN ? { type: 'handshake', token: TOKEN } : { type: 'handshake' };
+  ws.send(JSON.stringify(hsMsg));
   return hsPromise;
 }
 
@@ -179,21 +194,24 @@ async function main() {
   // 연결
   let hs;
   try {
-    console.log(`\n[suite] Connecting to ws://localhost:${PORT} ...`);
+    const portInfo = TOKEN ? `${PORT} (token: ${TOKEN.slice(0,8)}...)` : `${PORT} (no auth)`;
+    console.log(`\n[suite] Connecting to ws://localhost:${portInfo} ...`);
     hs = await connectAndHandshake();
-    console.log(`[suite] Handshake OK  version=${hs.version}`);
+    console.log(`[suite] Handshake OK  version=${hs.version}  authRequired=${hs.authRequired}`);
     console.log(`[suite] Capabilities: ${hs.capabilities.join(', ') || '(none)'}`);
     console.log(`[suite] Workspaces:   ${hs.workspaces?.join(', ') || '(none)'}`);
     if (!hs.workspaces || hs.workspaces.length === 0) {
       console.warn('\x1b[33m[suite] WARNING: 워크스페이스가 설정되지 않았습니다.\x1b[0m');
-      console.warn('        launch.json 의 "Run Extension" 설정으로 실행하거나');
-      console.warn('        args 에 "${workspaceFolder}" 를 추가하세요.');
-      console.warn('        → Find 테스트 5개가 실패할 수 있습니다.\n');
+      console.warn('        Extension Development Host가 올바른 폴더로 열려있는지 확인하세요.');
+      console.warn('        → Navigation/Find 일부 테스트가 실패할 수 있습니다.\n');
     }
     console.log('[suite] Running tests...');
   } catch (err) {
     console.error(`\n[suite] Connection failed: ${err.message}`);
     console.error('        Extension Development Host 가 실행 중인지 확인하세요 (F5).');
+    if (!TOKEN) {
+      console.error('        .vscode/settings.json 에서 idea.server.authToken 을 확인하세요.');
+    }
     process.exit(1);
   }
 
@@ -203,31 +221,32 @@ async function main() {
   section('/app/vscode/edit/find');
 
   await test('pattern(필수): 기본 리터럴 검색 → matches/totalCount 반환', async () => {
-    const res = await req('/app/vscode/edit/find', { pattern: 'IHandler' });
+    // test/src/stub.ts 안에서 IStubService 검색 (3회 등장)
+    const res = await req('/app/vscode/edit/find', {
+      pattern: 'IStubService',
+      include: 'test/src/**/*.ts',
+    });
     assertSuccess(res, 'find-basic');
     assertHas(res.result, 'matches', 'totalCount');
     assertTrue(Array.isArray(res.result.matches),         'matches must be array');
     assertTrue(typeof res.result.totalCount === 'number', 'totalCount must be number');
     assertTrue(res.result.totalCount === res.result.matches.length, 'totalCount must match matches.length');
-    // match 항목 형태 검증 (결과가 있을 때만)
     if (res.result.matches.length > 0) {
       const m = res.result.matches[0];
       assertHas(m, 'filePath', 'line', 'character', 'lineText');
       assertTrue(typeof m.line === 'number',      'match.line must be number');
       assertTrue(typeof m.character === 'number', 'match.character must be number');
-      assertTrue(m.lineText.toLowerCase().includes('ihandler'), 'lineText must contain match');
+      assertTrue(m.lineText.toLowerCase().includes('istubservice'), 'lineText must contain match');
     }
   });
 
   await test('include: 특정 glob 패턴 파일만 검색 → 결과가 해당 파일 타입만 포함', async () => {
     const res = await req('/app/vscode/edit/find', {
-      pattern: 'import',
+      pattern: 'IStubService',
       include: '**/*.ts',
     });
     assertSuccess(res, 'find-include');
     assertTrue(Array.isArray(res.result.matches), 'matches must be array');
-    assertTrue(typeof res.result.totalCount === 'number', 'totalCount must be number');
-    // 결과가 있으면 .ts 파일만 포함되는지 검증
     for (const m of res.result.matches) {
       assertTrue(m.filePath.endsWith('.ts'), `all matches must be .ts: got ${m.filePath}`);
     }
@@ -235,7 +254,7 @@ async function main() {
 
   await test('include: *.js 지정 → .ts 파일은 포함되지 않음', async () => {
     const res = await req('/app/vscode/edit/find', {
-      pattern: 'import',
+      pattern: 'IStubService',
       include: '**/*.js',
     });
     assertSuccess(res, 'find-include-js');
@@ -245,16 +264,20 @@ async function main() {
   });
 
   await test('exclude: glob 제외 적용 → 제외 경로 매치 수 감소', async () => {
-    const resAll  = await req('/app/vscode/edit/find', { pattern: 'export' });
+    // stub.ts만 있으므로 해당 파일을 exclude → 0건
+    const resAll  = await req('/app/vscode/edit/find', {
+      pattern: 'IStubService',
+      include: 'test/src/**/*.ts',
+    });
     const resExcl = await req('/app/vscode/edit/find', {
-      pattern: 'export',
-      exclude: '**/protocol/**',
+      pattern: 'IStubService',
+      include: 'test/src/**/*.ts',
+      exclude: 'test/src/stub.ts',
     });
     assertSuccess(resAll,  'find-exclude-all');
     assertSuccess(resExcl, 'find-exclude-excl');
     assertTrue(typeof resAll.result.totalCount  === 'number', 'totalCount must be number');
     assertTrue(typeof resExcl.result.totalCount === 'number', 'totalCount must be number');
-    // 결과가 있을 때만 exclude 효과 검증
     if (resAll.result.totalCount > 0) {
       assertTrue(
         resExcl.result.totalCount < resAll.result.totalCount,
@@ -263,41 +286,40 @@ async function main() {
     }
     for (const m of resExcl.result.matches) {
       assertTrue(
-        !m.filePath.replace(/\\/g, '/').includes('/protocol/'),
+        !m.filePath.replace(/\\/g, '/').endsWith('test/src/stub.ts'),
         `excluded path still appears: ${m.filePath}`,
       );
     }
   });
 
   await test('isRegex: true → 정규식 패턴 검색', async () => {
+    // test/src/stub.ts에 "class StubServiceError"와 "class StubServiceImpl" 존재
     const res = await req('/app/vscode/edit/find', {
-      pattern: 'class\\s+\\w+Handler',
+      pattern: 'class\\s+Stub\\w+',
       isRegex: true,
+      include: 'test/src/**/*.ts',
     });
     assertSuccess(res, 'find-regex');
     assertTrue(Array.isArray(res.result.matches), 'matches must be array');
-    assertTrue(typeof res.result.totalCount === 'number', 'totalCount must be number');
-    // 결과가 있으면 각 매치가 정규식에 맞는지 검증
     for (const m of res.result.matches) {
-      assertTrue(/class\s+\w+Handler/.test(m.lineText), `lineText must match regex: ${m.lineText}`);
+      assertTrue(/class\s+Stub\w+/.test(m.lineText), `lineText must match regex: ${m.lineText}`);
     }
   });
 
   await test('isRegex: false (기본값) → 특수문자 리터럴 처리', async () => {
-    // "class(" 는 리터럴로 취급 → src/ 소스 파일에는 매치 없어야 함
-    // (test/ 파일은 제외: suite.js 자체에 이 패턴이 문자열로 존재)
+    // "interface(" 리터럴은 stub.ts에 존재하지 않음
     const res = await req('/app/vscode/edit/find', {
-      pattern: 'class(',
+      pattern: 'interface(',
       isRegex: false,
-      include: 'src/**/*.ts',
+      include: 'test/src/**/*.ts',
     });
     assertSuccess(res, 'find-regex-false');
-    assertTrue(res.result.totalCount === 0, 'literal "class(" should not match anything in src/');
+    assertTrue(res.result.totalCount === 0, 'literal "interface(" should not match anything in test/src/');
   });
 
   await test('isCaseSensitive: false (기본값) → 대소문자 무시', async () => {
-    const upper = await req('/app/vscode/edit/find', { pattern: 'IDEASERVER', isCaseSensitive: false });
-    const lower = await req('/app/vscode/edit/find', { pattern: 'ideaserver', isCaseSensitive: false });
+    const upper = await req('/app/vscode/edit/find', { pattern: 'ISTUBSERVICE', isCaseSensitive: false, include: 'test/src/**/*.ts' });
+    const lower = await req('/app/vscode/edit/find', { pattern: 'istubservice', isCaseSensitive: false, include: 'test/src/**/*.ts' });
     assertSuccess(upper, 'find-ci-upper');
     assertSuccess(lower, 'find-ci-lower');
     assertTrue(
@@ -307,27 +329,24 @@ async function main() {
   });
 
   await test('isCaseSensitive: true → 대소문자 일치해야 매치', async () => {
-    // src/ 내에서만 검색: test/ 파일(suite.js, TEST_RESULT.txt)에는 'IDEASERVER' 문자열이 존재함
-    const exact = await req('/app/vscode/edit/find', { pattern: 'IdeaServer', isCaseSensitive: true, include: 'src/**/*.ts' });
-    const wrong = await req('/app/vscode/edit/find', { pattern: 'IDEASERVER', isCaseSensitive: true, include: 'src/**/*.ts' });
+    const exact = await req('/app/vscode/edit/find', { pattern: 'IStubService', isCaseSensitive: true, include: 'test/src/**/*.ts' });
+    const wrong = await req('/app/vscode/edit/find', { pattern: 'ISTUBSERVICE', isCaseSensitive: true, include: 'test/src/**/*.ts' });
     assertSuccess(exact, 'find-cs-exact');
     assertSuccess(wrong, 'find-cs-wrong');
-    // 정확한 케이스는 잘못된 케이스보다 같거나 많이 매치돼야 함
     assertTrue(
       exact.result.totalCount >= wrong.result.totalCount,
       `exact case(${exact.result.totalCount}) must be >= wrong case(${wrong.result.totalCount})`,
     );
-    assertTrue(wrong.result.totalCount === 0, '"IDEASERVER" (wrong case) must not be found');
+    assertTrue(wrong.result.totalCount === 0, '"ISTUBSERVICE" (wrong case) must not be found');
   });
 
   await test('pattern 누락 → INVALID_REQUEST', async () => {
-    const res = await req('/app/vscode/edit/find', { include: '**/*.ts' });
+    const res = await req('/app/vscode/edit/find', { include: 'test/src/**/*.ts' });
     assertError(res, 'INVALID_REQUEST', 'find-no-pattern');
   });
 
   await test('매치 없는 pattern → 빈 배열 + totalCount: 0 반환', async () => {
-    // src/ 내에서만 검색: 패턴 문자열 자체가 test/suite.js 코드에 포함되어 있으므로 제외
-    const res = await req('/app/vscode/edit/find', { pattern: 'xXx_NONEXISTENT_xXx', include: 'src/**/*.ts' });
+    const res = await req('/app/vscode/edit/find', { pattern: 'xXx_NONEXISTENT_xXx', include: 'test/src/**/*.ts' });
     assertSuccess(res, 'find-no-match');
     assertTrue(res.result.totalCount === 0,     'totalCount must be 0');
     assertTrue(res.result.matches.length === 0, 'matches must be empty array');
@@ -344,15 +363,12 @@ async function main() {
   // ════════════════════════════════════════════════════════════════════════════
   //  /app/vscode/edit/replace
   //  주의: 파일 수정을 방지하기 위해 프로젝트에 존재하지 않는 패턴을 사용한다.
-  //  실제 교체 동작은 Extension Development Host 에서 수동 검증할 것.
   // ════════════════════════════════════════════════════════════════════════════
   section('/app/vscode/edit/replace');
 
-  // src/**/*.ts 범위 내에서 존재하지 않는 안전한 패턴 — 파일이 실제로 수정되지 않음
-  // 주의: 아래 상수 자체가 이 파일(suite.js)에 존재하므로 include로 src/만 지정해야 함
   const SAFE_PAT = 'xXx_NONEXISTENT_PATTERN_xXx';
   const SAFE_REP = 'replacement_value';
-  const SAFE_INC = 'src/**/*.ts';
+  const SAFE_INC = 'test/src/**/*.ts';
 
   await test('pattern + replacement(필수): 응답 구조 검증 → replacedCount/affectedFiles 반환', async () => {
     const res = await req('/app/vscode/edit/replace', { pattern: SAFE_PAT, replacement: SAFE_REP, include: SAFE_INC });
@@ -431,27 +447,31 @@ async function main() {
 
   // ════════════════════════════════════════════════════════════════════════════
   //  /app/vscode/nav/definition
+  //  test/src/stub.ts 심볼 위치 (0-indexed):
+  //    Line  2, char 17 → IStubService 선언
+  //    Line  7, char 13 → StubServiceError 선언
+  //    Line 11, char 13 → StubServiceImpl 선언
   // ════════════════════════════════════════════════════════════════════════════
   section('/app/vscode/nav/definition');
 
-  await test('filePath + line + character: IHandler 정의 검색 → types.ts 반환', async () => {
-    // types.ts line 44 (0-indexed): export interface IHandler {
-    //                                                ^ char 17  → IHandler 선언 심볼
+  await test('filePath + line + character: IStubService 정의 검색 → stub.ts 반환', async () => {
+    // stub.ts line 2 (0-indexed): export interface IStubService {
+    //                                              ^ char 17
     const res = await req('/app/vscode/nav/definition', {
-      filePath:  SRC.types,
-      line:      44,
+      filePath:  SRC.stub,
+      line:      2,
       character: 17,
     });
-    assertSuccess(res, 'def-IHandler');
+    assertSuccess(res, 'def-IStubService');
     assertHas(res.result, 'locations');
     assertTrue(Array.isArray(res.result.locations), 'locations must be array');
-    assertTrue(res.result.locations.length > 0,     'IHandler definition must be found');
+    assertTrue(res.result.locations.length > 0,     'IStubService definition must be found');
     const loc = res.result.locations.find(
-      (l) => l.filePath.replace(/\\/g, '/').includes('/protocol/types'),
+      (l) => l.filePath.replace(/\\/g, '/').includes('/test/src/stub'),
     );
     assertTrue(
       loc !== undefined,
-      `definition should be in types.ts, got: ${res.result.locations.map((l) => l.filePath).join(', ')}`,
+      `definition should be in stub.ts, got: ${res.result.locations.map((l) => l.filePath).join(', ')}`,
     );
     assertHas(loc, 'filePath', 'line', 'character', 'endLine', 'endCharacter', 'code');
     assertTrue(typeof loc.line === 'number',         'loc.line must be number');
@@ -459,35 +479,37 @@ async function main() {
     assertTrue(typeof loc.endLine === 'number',      'loc.endLine must be number');
     assertTrue(typeof loc.endCharacter === 'number', 'loc.endCharacter must be number');
     assertTrue(typeof loc.code === 'string' && loc.code.length > 0, 'code must be non-empty');
-    assertTrue(loc.code.includes('IHandler'), 'code must contain IHandler declaration');
+    assertTrue(loc.code.includes('IStubService'), 'code must contain IStubService declaration');
   });
 
-  await test('FindHandler 정의 검색 → FindHandler.ts 반환 + 코드 포함', async () => {
-    // FindHandler.ts line 10 (0-indexed): export class FindHandler implements IHandler {
-    //                                                   ^ char 13  → FindHandler 클래스 선언
+  await test('StubServiceImpl 정의 검색 → stub.ts 반환 + 코드 포함', async () => {
+    // stub.ts line 11 (0-indexed): export class StubServiceImpl implements IStubService {
+    //                                            ^ char 13
     const res = await req('/app/vscode/nav/definition', {
-      filePath:  SRC.findHandler,
-      line:      10,
+      filePath:  SRC.stub,
+      line:      11,
       character: 13,
     });
-    assertSuccess(res, 'def-FindHandler');
-    assertTrue(res.result.locations.length > 0, 'FindHandler definition must be found');
+    assertSuccess(res, 'def-StubServiceImpl');
+    assertTrue(res.result.locations.length > 0, 'StubServiceImpl definition must be found');
     const loc = res.result.locations.find(
-      (l) => l.filePath.replace(/\\/g, '/').includes('/FindHandler'),
+      (l) => l.filePath.replace(/\\/g, '/').includes('/test/src/stub'),
     );
     assertTrue(
       loc !== undefined,
-      `definition must be in FindHandler.ts, got: ${res.result.locations.map((l) => l.filePath).join(', ')}`,
+      `definition must be in stub.ts, got: ${res.result.locations.map((l) => l.filePath).join(', ')}`,
     );
-    assertTrue(loc.code.includes('FindHandler'), 'code must contain class FindHandler');
+    assertTrue(loc.code.includes('StubServiceImpl'), 'code must contain class StubServiceImpl');
     assertTrue(loc.endLine >= loc.line, 'endLine must be >= line (multi-line definition)');
   });
 
-  await test('code 필드: 단일 라인 vs 멀티 라인 → endLine >= line 항상 성립', async () => {
+  await test('code 필드: 멀티 라인 클래스 → endLine >= line 항상 성립', async () => {
+    // stub.ts line 7 (0-indexed): export class StubServiceError {
+    //                                           ^ char 13
     const res = await req('/app/vscode/nav/definition', {
-      filePath:  SRC.findHandler,
-      line:      1,
-      character: 9,
+      filePath:  SRC.stub,
+      line:      7,
+      character: 13,
     });
     assertSuccess(res, 'def-multiline');
     for (const loc of res.result.locations) {
@@ -501,33 +523,33 @@ async function main() {
   });
 
   await test('line 누락 → INVALID_REQUEST', async () => {
-    const res = await req('/app/vscode/nav/definition', { filePath: SRC.types, character: 0 });
+    const res = await req('/app/vscode/nav/definition', { filePath: SRC.stub, character: 0 });
     assertError(res, 'INVALID_REQUEST', 'def-no-line');
   });
 
   await test('character 누락 → INVALID_REQUEST', async () => {
-    const res = await req('/app/vscode/nav/definition', { filePath: SRC.types, line: 0 });
+    const res = await req('/app/vscode/nav/definition', { filePath: SRC.stub, line: 0 });
     assertError(res, 'INVALID_REQUEST', 'def-no-character');
   });
 
   await test('line 이 string 타입 → INVALID_REQUEST (number 만 허용)', async () => {
     const res = await req('/app/vscode/nav/definition', {
-      filePath: SRC.types, line: '1', character: 0,
+      filePath: SRC.stub, line: '1', character: 0,
     });
     assertError(res, 'INVALID_REQUEST', 'def-line-wrong-type');
   });
 
   await test('character 가 string 타입 → INVALID_REQUEST (number 만 허용)', async () => {
     const res = await req('/app/vscode/nav/definition', {
-      filePath: SRC.types, line: 0, character: '0',
+      filePath: SRC.stub, line: 0, character: '0',
     });
     assertError(res, 'INVALID_REQUEST', 'def-character-wrong-type');
   });
 
   await test('주석 위치 (심볼 없음) → 빈 locations 배열 반환', async () => {
-    // types.ts line 0: "// ─── Handshake ───"  — 심볼 없음
+    // stub.ts line 0: "// ─── Stub types ..."  — 심볼 없음
     const res = await req('/app/vscode/nav/definition', {
-      filePath:  SRC.types,
+      filePath:  SRC.stub,
       line:      0,
       character: 5,
     });
@@ -538,25 +560,26 @@ async function main() {
 
   // ════════════════════════════════════════════════════════════════════════════
   //  /app/vscode/nav/references
+  //  IStubService 선언 위치 (stub.ts):
+  //    Line 2, char 17: 선언
+  //    Line 11, char 40: implements IStubService
+  //    Line 21, char 37: ): IStubService 반환타입
   // ════════════════════════════════════════════════════════════════════════════
   section('/app/vscode/nav/references');
 
-  // types.ts line 44 (0-indexed): "export interface IHandler {"
-  //                                                  ^ char 17
-  const IH_FILE = SRC.types;
-  const IH_LINE = 44;
-  const IH_CHAR = 17;
+  const STUB_FILE = SRC.stub;
+  const STUB_LINE = 2;   // IStubService 선언 라인
+  const STUB_CHAR = 17;  // IStubService 선언 컬럼
 
-  await test('filePath + line + character: IHandler 참조 검색 → locations/totalCount 반환', async () => {
+  await test('filePath + line + character: IStubService 참조 검색 → locations/totalCount 반환', async () => {
     const res = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: IH_LINE, character: IH_CHAR,
+      filePath: STUB_FILE, line: STUB_LINE, character: STUB_CHAR,
     });
     assertSuccess(res, 'refs-basic');
     assertHas(res.result, 'locations', 'totalCount');
     assertTrue(Array.isArray(res.result.locations),         'locations must be array');
     assertTrue(typeof res.result.totalCount === 'number',   'totalCount must be number');
-    assertTrue(res.result.totalCount > 0,                   'IHandler must have references');
-    // location 항목 형태 검증
+    assertTrue(res.result.totalCount > 0,                   'IStubService must have references');
     const loc = res.result.locations[0];
     assertHas(loc, 'filePath', 'line', 'character', 'endLine', 'endCharacter');
     assertTrue(typeof loc.line === 'number',         'loc.line must be number');
@@ -568,23 +591,23 @@ async function main() {
 
   await test('includeDeclaration: true → 선언부 포함', async () => {
     const res = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: IH_LINE, character: IH_CHAR, includeDeclaration: true,
+      filePath: STUB_FILE, line: STUB_LINE, character: STUB_CHAR, includeDeclaration: true,
     });
     assertSuccess(res, 'refs-with-decl');
     assertTrue(res.result.totalCount > 0, 'should find references with declaration');
-    // 선언이 포함됐는지: types.ts IH_LINE 행 위치가 결과에 있어야 함
+    // 선언이 포함됐는지: stub.ts STUB_LINE 위치가 결과에 있어야 함
     const hasDecl = res.result.locations.some(
-      (loc) => loc.filePath.replace(/\\/g, '/').includes('/protocol/types') && loc.line === IH_LINE,
+      (loc) => loc.filePath.replace(/\\/g, '/').includes('/test/src/stub') && loc.line === STUB_LINE,
     );
     assertTrue(hasDecl, 'declaration location must be present when includeDeclaration=true');
   });
 
   await test('includeDeclaration: false → 선언부 제외, 결과 수 ≤ true 케이스', async () => {
     const withDecl    = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: IH_LINE, character: IH_CHAR, includeDeclaration: true,
+      filePath: STUB_FILE, line: STUB_LINE, character: STUB_CHAR, includeDeclaration: true,
     });
     const withoutDecl = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: IH_LINE, character: IH_CHAR, includeDeclaration: false,
+      filePath: STUB_FILE, line: STUB_LINE, character: STUB_CHAR, includeDeclaration: false,
     });
     assertSuccess(withDecl,    'refs-decl-with');
     assertSuccess(withoutDecl, 'refs-decl-without');
@@ -594,17 +617,17 @@ async function main() {
     );
     // 선언 위치가 제외됐는지 확인
     const declStillPresent = withoutDecl.result.locations.some(
-      (loc) => loc.filePath.replace(/\\/g, '/').includes('/protocol/types') && loc.line === IH_LINE,
+      (loc) => loc.filePath.replace(/\\/g, '/').includes('/test/src/stub') && loc.line === STUB_LINE,
     );
     assertTrue(!declStillPresent, 'declaration must be absent when includeDeclaration=false');
   });
 
   await test('includeDeclaration 생략 → true 와 동일한 결과 수', async () => {
     const omitted  = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: IH_LINE, character: IH_CHAR,
+      filePath: STUB_FILE, line: STUB_LINE, character: STUB_CHAR,
     });
     const explicit = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: IH_LINE, character: IH_CHAR, includeDeclaration: true,
+      filePath: STUB_FILE, line: STUB_LINE, character: STUB_CHAR, includeDeclaration: true,
     });
     assertSuccess(omitted,  'refs-omit');
     assertSuccess(explicit, 'refs-explicit');
@@ -615,30 +638,30 @@ async function main() {
   });
 
   await test('filePath 누락 → INVALID_REQUEST', async () => {
-    const res = await req('/app/vscode/nav/references', { line: IH_LINE, character: IH_CHAR });
+    const res = await req('/app/vscode/nav/references', { line: STUB_LINE, character: STUB_CHAR });
     assertError(res, 'INVALID_REQUEST', 'refs-no-filePath');
   });
 
   await test('line 누락 → INVALID_REQUEST', async () => {
-    const res = await req('/app/vscode/nav/references', { filePath: IH_FILE, character: IH_CHAR });
+    const res = await req('/app/vscode/nav/references', { filePath: STUB_FILE, character: STUB_CHAR });
     assertError(res, 'INVALID_REQUEST', 'refs-no-line');
   });
 
   await test('character 누락 → INVALID_REQUEST', async () => {
-    const res = await req('/app/vscode/nav/references', { filePath: IH_FILE, line: IH_LINE });
+    const res = await req('/app/vscode/nav/references', { filePath: STUB_FILE, line: STUB_LINE });
     assertError(res, 'INVALID_REQUEST', 'refs-no-character');
   });
 
   await test('line 이 string 타입 → INVALID_REQUEST', async () => {
     const res = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: String(IH_LINE), character: IH_CHAR,
+      filePath: STUB_FILE, line: String(STUB_LINE), character: STUB_CHAR,
     });
     assertError(res, 'INVALID_REQUEST', 'refs-line-wrong-type');
   });
 
   await test('character 가 string 타입 → INVALID_REQUEST', async () => {
     const res = await req('/app/vscode/nav/references', {
-      filePath: IH_FILE, line: IH_LINE, character: String(IH_CHAR),
+      filePath: STUB_FILE, line: STUB_LINE, character: String(STUB_CHAR),
     });
     assertError(res, 'INVALID_REQUEST', 'refs-character-wrong-type');
   });
@@ -658,15 +681,14 @@ async function main() {
   });
 
   await test('filePath: 특정 파일 진단 결과만 반환', async () => {
-    const res = await req('/app/vscode/diag/list', { filePath: SRC.types });
+    const res = await req('/app/vscode/diag/list', { filePath: SRC.stub });
     assertSuccess(res, 'diag-file');
     assertTrue(Array.isArray(res.result.diagnostics), 'diagnostics must be array');
-    // 결과가 있으면 해당 파일만 포함되는지 확인
-    const normalizedTypes = SRC.types.replace(/\\/g, '/').toLowerCase();
+    const normalizedStub = SRC.stub.replace(/\\/g, '/').toLowerCase();
     for (const d of res.result.diagnostics) {
       assertTrue(
-        d.filePath.replace(/\\/g, '/').toLowerCase() === normalizedTypes,
-        `all diagnostics must be from types.ts, got: ${d.filePath}`,
+        d.filePath.replace(/\\/g, '/').toLowerCase() === normalizedStub,
+        `all diagnostics must be from stub.ts, got: ${d.filePath}`,
       );
     }
   });
@@ -720,27 +742,28 @@ async function main() {
 
   // ════════════════════════════════════════════════════════════════════════════
   //  /app/vscode/nav/symbols
+  //  test/src/stub.ts 심볼: IStubService, StubServiceError, StubServiceImpl, createStubService
   // ════════════════════════════════════════════════════════════════════════════
   section('/app/vscode/nav/symbols');
 
-  await test('basic: types.ts symbols → 배열 + totalCount > 0', async () => {
-    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types });
+  await test('basic: stub.ts symbols → 배열 + totalCount > 0', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.stub });
     assertSuccess(res, 'sym-basic');
     assertHas(res.result, 'symbols', 'totalCount');
-    assertTrue(Array.isArray(res.result.symbols),       'symbols must be array');
+    assertTrue(Array.isArray(res.result.symbols),         'symbols must be array');
     assertTrue(typeof res.result.totalCount === 'number', 'totalCount must be number');
-    assertTrue(res.result.totalCount > 0,               'types.ts must have symbols');
+    assertTrue(res.result.totalCount > 0,                 'stub.ts must have symbols');
   });
 
-  await test('result includes IHandler', async () => {
-    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types });
-    assertSuccess(res, 'sym-ihandler');
-    const found = res.result.symbols.some((s) => s.name === 'IHandler');
-    assertTrue(found, 'IHandler symbol must be present in types.ts');
+  await test('result includes IStubService', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.stub });
+    assertSuccess(res, 'sym-istubservice');
+    const found = res.result.symbols.some((s) => s.name === 'IStubService');
+    assertTrue(found, 'IStubService symbol must be present in stub.ts');
   });
 
   await test('symbol 구조: 필수 필드 존재 확인', async () => {
-    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types });
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.stub });
     assertSuccess(res, 'sym-structure');
     assertTrue(res.result.symbols.length > 0, 'symbols must not be empty');
     const s = res.result.symbols[0];
@@ -752,21 +775,21 @@ async function main() {
     assertTrue(typeof s.selectionLine === 'number', 's.selectionLine must be number');
   });
 
-  await test('query filter: IHandler 관련 심볼만 반환', async () => {
-    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.types, query: 'IHandler' });
+  await test('query filter: StubServiceError 관련 심볼만 반환', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.stub, query: 'Error' });
     assertSuccess(res, 'sym-query');
-    assertTrue(res.result.totalCount > 0, 'query "IHandler" must return results');
+    assertTrue(res.result.totalCount > 0, 'query "Error" must return results');
     for (const s of res.result.symbols) {
       assertTrue(
-        s.name.toLowerCase().includes('ihandler'),
-        `all symbols must match query 'IHandler', got: ${s.name}`,
+        s.name.toLowerCase().includes('error'),
+        `all symbols must match query 'Error', got: ${s.name}`,
       );
     }
   });
 
   await test('query no match → totalCount: 0', async () => {
     const res = await req('/app/vscode/nav/symbols', {
-      filePath: SRC.types,
+      filePath: SRC.stub,
       query: 'xXx_NONEXISTENT_SYMBOL_xXx',
     });
     assertSuccess(res, 'sym-query-no-match');

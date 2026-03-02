@@ -24,6 +24,22 @@
 const WebSocket = require('ws');
 const { randomUUID } = require('crypto');
 const readline = require('readline');
+const fs   = require('fs');
+const path = require('path');
+
+// ─── Settings.json 자동 읽기 ─────────────────────────────────────────────────
+
+function readWorkspaceSettings() {
+  const settingsPath = path.join(__dirname, '..', '.vscode', 'settings.json');
+  try {
+    let raw = fs.readFileSync(settingsPath, 'utf8');
+    // 기본적인 JSONC 처리 (// 주석 및 trailing comma 제거)
+    raw = raw.replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1');
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
 
 // ─── Color helpers ─────────────────────────────────────────────────────────────
 
@@ -44,7 +60,7 @@ function visibleLen(str) {
 
 // ─── CLI Argument Parsing ───────────────────────────────────────────────────────
 
-function parseArgs() {
+function parseArgs(defaultPort = 7200) {
   const argv = process.argv.slice(2);
 
   if (argv.length === 0 || argv.includes('--help') || argv.includes('-h')) {
@@ -57,7 +73,7 @@ function parseArgs() {
     exclude: undefined,
     regex: false,
     case: false,
-    port: 7200,
+    port: defaultPort,
     severity: 'all',
     query: undefined,
   };
@@ -131,7 +147,7 @@ function parseArgs() {
 
 // ─── WebSocket helpers ──────────────────────────────────────────────────────────
 
-function connect(port) {
+function connect(port, token = '') {
   return new Promise((resolve, reject) => {
     const url = `ws://localhost:${port}`;
     const ws = new WebSocket(url);
@@ -142,7 +158,8 @@ function connect(port) {
     }, 5000);
 
     ws.on('open', () => {
-      ws.send(JSON.stringify({ type: 'handshake' }));
+      const hsMsg = token ? { type: 'handshake', token } : { type: 'handshake' };
+      ws.send(JSON.stringify(hsMsg));
     });
 
     ws.once('message', (raw) => {
@@ -155,6 +172,11 @@ function connect(port) {
         return;
       }
       if (msg.type === 'handshake') {
+        if (msg.error) {
+          ws.close();
+          reject(new Error(`Handshake failed: [${msg.error.code}] ${msg.error.message}`));
+          return;
+        }
         resolve({ ws, workspaces: msg.workspaces ?? [] });
       } else {
         reject(new Error(`Unexpected first message: ${JSON.stringify(msg)}`));
@@ -477,29 +499,40 @@ Options:
   --help                Show this help
 
 Examples:
-  node test/test.js find "IHandler"
+  node test/test.js find "IStubService" --include=test/src/**/*.ts
   node test/test.js find "TODO" --include=src/**/*.ts
-  node test/test.js replace "oldText" "newText" --include=src/**/*.ts
-  node test/test.js def "IHandler"
-  node test/test.js ref "IHandler" --include=src/**/*.ts
+  node test/test.js replace "oldText" "newText" --include=test/src/**/*.ts
+  node test/test.js def "IStubService" --include=test/src/**/*.ts
+  node test/test.js ref "IStubService" --include=test/src/**/*.ts
   node test/test.js diag
-  node test/test.js diag src/extension.ts
-  node test/test.js diag src/extension.ts src/handlers/FindHandler.ts --severity=error
-  node test/test.js sym src/protocol/types.ts
-  node test/test.js sym src/protocol/types.ts --query=IHandler
+  node test/test.js diag test/src/stub.ts
+  node test/test.js diag test/src/stub.ts --severity=error
+  node test/test.js sym test/src/stub.ts
+  node test/test.js sym test/src/stub.ts --query=Service
+
+Note:
+  Port and auth token are read automatically from .vscode/settings.json.
+  Use --port=<n> to override the port.
 `.trim());
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const { topic, pattern, replacement, filePath, filePaths, opts } = parseArgs();
+  const settings    = readWorkspaceSettings();
+  const defaultPort = parseInt(settings['idea.server.port'] ?? '7200', 10);
+  const token       = settings['idea.server.authToken'] ?? '';
+
+  const { topic, pattern, replacement, filePath, filePaths, opts } = parseArgs(defaultPort);
 
   let ws;
   try {
-    ({ ws } = await connect(opts.port));
+    ({ ws } = await connect(opts.port, token));
   } catch (err) {
     console.error(red(`✗ ${err.message}`));
+    if (err.message.includes('UNAUTHORIZED')) {
+      console.error(red('  Check that idea.server.authToken in .vscode/settings.json is correct.'));
+    }
     process.exit(1);
   }
 
