@@ -23,6 +23,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   - 핸드셰이크 응답에 `authRequired: boolean` 추가.
   - 새 에러코드: `UNAUTHORIZED`.
 - **Settings UI 인증 섹션**: 토큰 인증 토글, 토큰 표시, 복사/재생성 버튼.
+- **Token Expose Toggle**: `idea.server.exposeToken` 설정 추가 (기본값: `true`).
+  - `true`: 토큰을 Global + `.vscode/settings.json` 모두 저장 (기존 동작 유지).
+  - `false`: 토큰을 VS Code User 전역 설정에만 저장, 워크스페이스 파일에서 항목 제거 (보안 강화).
+  - Settings UI에 "settings.json에 노출" 체크박스 추가.
 
 ### Changed
 - 프로토콜 버전 v0.1.3으로 업데이트.

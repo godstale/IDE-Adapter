@@ -38,10 +38,10 @@
 node test/test.js find "IStubService" --include=test/src/**/*.ts
 
 # stub.ts 파일 심볼 목록
-node test/test.js sym test/src/stub.ts
+node test/test.js sym test/src/App.tsx
 
 # stub.ts 파일 진단 (오류/경고)
-node test/test.js diag test/src/stub.ts
+node test/test.js diag test/src/App.tsx
 
 # stub.ts에서 IStubService 정의로 이동 (대화형 선택)
 node test/test.js def "IStubService" --include=test/src/**/*.ts

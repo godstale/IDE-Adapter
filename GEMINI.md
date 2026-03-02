@@ -33,11 +33,7 @@ This file provides instructional context and an overview of the IDEA (IDE Adapte
 
 **Running and Testing:**
 - **Launch Extension:** Press **F5** in VS Code to launch the Extension Development Host for manual testing.
-- **Test Client:** A test client script is provided to interact with the running extension server.
-  ```bash
-  node test/client.js          # Connects to default ws://localhost:7200
-  node test/client.js 7201     # Connects to a custom port
-  ```
+- **Test Client:** A test client script is provided to interact with the running extension server. Refer to @test/HOWTO_TEST.md.
 
 ## Development Conventions
 

@@ -121,3 +121,46 @@
   - `ready` 시 `idea.server.autoStart` 값 → `serverSettings` 메시지로 웹뷰에 전송
   - `applyAutoStart` 커맨드 수신 시 `idea.server.autoStart` Global 설정 저장
   - JS: 체크박스 change 이벤트 핸들러, `serverSettings` 메시지 처리
+
+---
+
+## 멀티 워크스페이스 + 인증/보안 — 2026-03-02
+
+### Feature 1: 포트 자동 증가 (Multi-workspace)
+- [x] `IdeaServer.start(port)` — EADDRINUSE 발생 시 port+1 재시도 (최대 10회)
+- [x] `tryBind(port)` private 메서드로 단일 포트 바인딩 시도 로직 분리
+- [x] 성공한 실제 포트를 `onStatusChange` 콜백으로 extension.ts에 전달
+
+### Feature 2: 토큰 인증 (Auth/Security)
+- [x] `src/protocol/types.ts` — `AuthConfig` 인터페이스 추가, `ClientHandshake.token?`, `ServerHandshake.authRequired` 추가
+- [x] `package.json` — `idea.server.authEnabled` (global, default: true), `idea.server.authToken` (workspace, default: "") 설정 추가
+- [x] `src/extension.ts` — `getOrCreateAuthConfig()` 헬퍼 (UUID 자동 생성 + workspace 설정 저장), `IdeaServer`/`IdeaPanel`에 AuthConfig 전달
+- [x] `src/server/IdeaServer.ts` — 생성자에 `AuthConfig` 추가, `updateAuthConfig()` 메서드 추가, ClientSession에 AuthConfig 전달
+- [x] `src/session/ClientSession.ts` — 핸드셰이크에서 token 검증, UNAUTHORIZED 에러 응답, VERSION → '0.1.3'
+- [x] `src/panel/IdeaPanel.ts` — Settings탭에 "인증" 섹션 UI 추가 (toggle, token 표시, 복사, 재생성 버튼)
+
+### 문서/버전 업데이트
+- [x] `docs/IDEA_InputProtocol.md` — handshake `token` 필드 추가, 버전 → v0.1.3
+- [x] `docs/IDEA_OutputProtocol.md` — handshake `authRequired` 필드, UNAUTHORIZED 에러코드, 버전 → v0.1.3
+- [x] `README.md` — 버전 테이블, 신규 설정 항목 추가
+- [x] `CHANGELOG.md` — v0.1.3 섹션 추가
+- [x] `package.json` — version → "0.1.3"
+
+---
+
+## Token Expose Toggle — 2026-03-02
+
+`idea.server.exposeToken` 설정 추가: 인증 토큰의 `.vscode/settings.json` 노출 여부 제어.
+- `exposeToken=true` (기본): 토큰을 Global + Workspace 모두 저장 (기존 동작 유지)
+- `exposeToken=false` (보안 모드): 토큰을 Global에만 저장, Workspace에서 항목 제거
+
+- [x] `package.json` — `idea.server.exposeToken` 설정 추가 (boolean, default: true)
+- [x] `src/extension.ts` — `getOrCreateAuthConfig()` 수정: 항상 Global 저장, exposeToken=true 시에만 Workspace 저장
+- [x] `src/extension.ts` — 토큰 재생성 콜백: exposeToken 존중
+- [x] `src/extension.ts` — `onApplyExposeToken` 콜백 구현
+- [x] `src/panel/IdeaPanel.ts` — 생성자에 `onApplyExposeToken` 콜백 추가
+- [x] `src/panel/IdeaPanel.ts` — `ready` 핸들러: `authSettings`에 `exposeToken` 포함
+- [x] `src/panel/IdeaPanel.ts` — `regenerateToken` 케이스: `exposeToken` 포함
+- [x] `src/panel/IdeaPanel.ts` — `applyExposeToken` 메시지 케이스 추가
+- [x] `src/panel/IdeaPanel.ts` — HTML에 `row-expose-token` 행 추가
+- [x] `src/panel/IdeaPanel.ts` — JS `applyAuthSettings`, `applyAuthRowVisibility` 업데이트

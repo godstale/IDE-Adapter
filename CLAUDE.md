@@ -12,12 +12,6 @@ npm run lint             # ESLint (src/**/*.ts)
 
 Build output goes to `out/`. Press **F5** in VS Code to launch the Extension Development Host for manual testing.
 
-**Test client** (requires the extension to be running):
-```bash
-node test/client.js          # connects to ws://localhost:7200
-node test/client.js 7201     # custom port
-```
-
 ## Architecture
 
 This is a VS Code extension that runs a local **WebSocket server** (default port 7200). External CLI apps connect as clients.
@@ -63,6 +57,10 @@ The webview sends `ready` on load; the extension replies with current `serverSta
 ## Git Workflow
 
 Remote: `git@github.com:godstale/IDE-Adapter.git` (SSH) — 기본 브랜치: `main`
+- commit 전에 CHANGELOG.md 파일을 업데이트 한다.
+- 주요한 변경사항인 경우 어플리케이션 버전을 증가시킨다.
+- IDEA input/output 프로토콜은 변경시 항상 버전을 증가해야한다.
+- PR 머지는 항상 사용자가 직접 처리한다.
 
 **작업 시작 시**
 ```bash
@@ -84,11 +82,6 @@ gh pr create             # PR 생성 (머지는 사용자가 직접 처리)
 git checkout main
 git pull
 ```
-
-- commit 전에 CHANGELOG.md 파일을 업데이트 한다.
-- 주요한 변경사항인 경우 어플리케이션 버전을 증가시킨다.
-- IDEA input/output 프로토콜은 변경시 항상 버전을 증가해야한다.
-- PR 머지는 항상 사용자가 직접 처리한다.
 
 ## Version Management
 

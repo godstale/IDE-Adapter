@@ -17,6 +17,7 @@ export class IdeaPanel {
     private readonly onGetAuthSettings: () => Promise<AuthConfig>,
     private readonly onApplyAuthEnabled: (enabled: boolean) => Promise<void>,
     private readonly onRegenerateToken: () => Promise<string>,
+    private readonly onApplyExposeToken: (expose: boolean) => Promise<void>,
   ) {
     // Stream new log entries to the webview in real time
     logger.on('entry', (entry: LogEntry) => {
@@ -56,7 +57,12 @@ export class IdeaPanel {
             const panelConfig = vscode.workspace.getConfiguration('idea.panel');
             this.postMessage({ type: 'panelSettings', autoOpen: panelConfig.get<boolean>('autoOpen', false) });
             const authConfig = await this.onGetAuthSettings();
-            this.postMessage({ type: 'authSettings', enabled: authConfig.enabled, token: authConfig.token });
+            this.postMessage({
+              type: 'authSettings',
+              enabled: authConfig.enabled,
+              token: authConfig.token,
+              exposeToken: serverConfig.get<boolean>('exposeToken', true),
+            });
             break;
           }
           case 'toggleServer':
@@ -86,9 +92,18 @@ export class IdeaPanel {
             break;
           case 'regenerateToken': {
             const newToken = await this.onRegenerateToken();
-            this.postMessage({ type: 'authSettings', enabled: true, token: newToken });
+            const regen_cfg = vscode.workspace.getConfiguration('idea.server');
+            this.postMessage({
+              type: 'authSettings',
+              enabled: true,
+              token: newToken,
+              exposeToken: regen_cfg.get<boolean>('exposeToken', true),
+            });
             break;
           }
+          case 'applyExposeToken':
+            await this.onApplyExposeToken((msg as { command: string; value: boolean }).value);
+            break;
           case 'openProtocol':
             openProtocolViewer(
               this.extensionUri,
@@ -326,6 +341,10 @@ export class IdeaPanel {
       <button class="btn secondary" id="btn-copy-token">복사</button>
       <button class="btn secondary" id="btn-regen-token">재생성</button>
     </div>
+    <div class="row" id="row-expose-token" style="display:none;">
+      <input type="checkbox" id="chk-expose-token" checked>
+      <label class="label" for="chk-expose-token">settings.json 에 노출 (CLI 자동 인식)</label>
+    </div>
   </div>
 
   <div class="section">
@@ -423,14 +442,21 @@ export class IdeaPanel {
     }
   });
 
+  document.getElementById('chk-expose-token').addEventListener('change', (e) => {
+    vscode.postMessage({ command: 'applyExposeToken', value: e.target.checked });
+  });
+
   function applyAuthRowVisibility(enabled) {
-    const row = document.getElementById('row-token');
-    row.style.display = enabled ? 'flex' : 'none';
+    const rowToken  = document.getElementById('row-token');
+    const rowExpose = document.getElementById('row-expose-token');
+    rowToken.style.display  = enabled ? 'flex' : 'none';
+    rowExpose.style.display = enabled ? 'flex' : 'none';
   }
 
-  function applyAuthSettings(enabled, token) {
+  function applyAuthSettings(enabled, token, exposeToken) {
     document.getElementById('chk-auth-enabled').checked = enabled;
     document.getElementById('token-display').value = token || '';
+    document.getElementById('chk-expose-token').checked = exposeToken !== false;
     applyAuthRowVisibility(enabled);
   }
 
@@ -527,7 +553,7 @@ export class IdeaPanel {
         document.getElementById('chk-auto-open').checked = msg.autoOpen;
         break;
       case 'authSettings':
-        applyAuthSettings(msg.enabled, msg.token);
+        applyAuthSettings(msg.enabled, msg.token, msg.exposeToken);
         break;
     }
   });

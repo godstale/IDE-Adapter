@@ -68,10 +68,10 @@ See [`docs/IDEA_InputProtocol.md`](docs/IDEA_InputProtocol.md) and [`docs/IDEA_O
 node test/suite.js
 
 # 대화형 CLI 도구
-node test/test.js sym test/src/stub.ts
+node test/test.js sym test/src/App.tsx
 node test/test.js find "IStubService" --include=test/src/**/*.ts
 node test/test.js def "IStubService" --include=test/src/**/*.ts
-node test/test.js diag test/src/stub.ts
+node test/test.js diag test/src/App.tsx
 ```
 
 네비게이션 테스트는 `test/src/stub.ts`의 고정된 심볼 위치를 사용하므로 어느 워크스페이스에서나 동작합니다.

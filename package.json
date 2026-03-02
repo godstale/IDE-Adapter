@@ -81,6 +81,11 @@
           "type": "string",
           "default": "",
           "description": "Auth token (UUID, auto-generated). Stored in workspace .vscode/settings.json for external client access."
+        },
+        "idea.server.exposeToken": {
+          "type": "boolean",
+          "default": true,
+          "description": "Save the auth token to .vscode/settings.json for external client access. Disable for enhanced security (token stored in VS Code user settings only, not in the workspace file)."
         }
       }
     }
