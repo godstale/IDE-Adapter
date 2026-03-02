@@ -11,6 +11,82 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.6] — 2026-03-02
+
+> **Protocol Version: v0.1.6**
+
+### Added
+- **LocalHistoryListHandler** (`/app/vscode/localhistory/list`): VS Code 로컬 저장 이력 목록 조회.
+  - `filePath` 파라미터 지정 시 해당 파일의 로컬 저장 이력 반환 (이력 없으면 빈 배열).
+  - 결과: `entries[]` (id, timestamp, timestampLabel, source?), `totalCount`.
+- **LocalHistoryDiffHandler** (`/app/vscode/localhistory/diff`): 두 로컬 저장 시점 간 unified diff 반환.
+  - `fromId` 생략 시 현재 파일을 기준으로 비교. `toId` 생략 시 현재 파일이 대상.
+  - `fromId`, `toId` 동시 생략 → `INVALID_REQUEST`.
+  - 존재하지 않는 ID → `INVALID_REQUEST`.
+  - LCS DP 기반 unified diff 계산 (외부 패키지 없음, 3줄 context, fallback 지원).
+- **LocalHistoryRollbackHandler** (`/app/vscode/localhistory/rollback`): 파일을 특정 로컬 저장 시점으로 복원.
+  - `filePath` + `toId` 필수.
+  - 결과: `filePath`(절대), `restoredId`, `restoredLabel`(타임스탬프 문자열).
+- **LocalHistoryService** (`src/handlers/LocalHistoryService.ts`): 로컬 히스토리 공통 서비스.
+  - `context.globalStorageUri.fsPath`에서 `Code/User/History/` 디렉토리 자동 도출.
+  - 전체 서브디렉토리 스캔으로 `entries.json` 파싱 및 파일별 이력 탐색.
+  - VS Code / Cursor 모두 동작.
+- **test/test.js**: `lhlist`, `lhdiff`, `lhrollback` 커맨드 추가.
+- **test/suite.js**: `/app/vscode/localhistory/list|diff|rollback` 테스트 섹션 추가 (10개 케이스).
+
+### Changed
+- 프로토콜 버전 v0.1.6으로 업데이트.
+- `capabilities` 배열에 3개 신규 localhistory 토픽 추가.
+
+---
+
+## [0.1.5] — 2026-03-02
+
+> **Protocol Version: v0.1.5**
+
+### Added
+- **FileRollbackHandler** (`/app/vscode/history/rollback`): 파일을 특정 커밋 시점으로 복원하고 디스크에 자동 저장.
+  - `filePath` + `toIndex` 파라미터 지원 (1=HEAD, N=HEAD~(N-1)).
+  - `repository.show(ref, path)`로 커밋 시점의 파일 내용 획득.
+  - `vscode.workspace.fs.writeFile()`로 디스크에 직접 저장.
+  - 결과에 `filePath`(절대), `toRef`(git ref), `restoredIndex` 반환.
+  - 에러 케이스: `toIndex < 1` → `INVALID_REQUEST`, git/ref 오류 → `HANDLER_ERROR`.
+- **test/test.js**: `rollback` 커맨드 추가 (`node test/test.js rollback <filePath> <toIndex>`).
+- **test/suite.js**: `/app/vscode/history/rollback` 테스트 섹션 추가 (5개 케이스).
+
+### Changed
+- 프로토콜 버전 v0.1.5로 업데이트.
+- `capabilities` 배열에 `/app/vscode/history/rollback` 추가.
+
+---
+
+## [0.1.4] — 2026-03-02
+
+> **Protocol Version: v0.1.4**
+
+### Added
+- **FileHistoryHandler** (`/app/vscode/history/list`): 파일의 git 커밋 이력 목록 조회.
+  - `filePath` + `maxCount` 파라미터 지원.
+  - 결과에 `index`(1=HEAD, N=HEAD~(N-1)), `hash`, `shortHash`, `message`, `authorName`, `authorEmail`, `authorDate` 포함.
+  - VS Code built-in `vscode.git` Extension API(`repository.log()`) 사용.
+- **FileDiffHandler** (`/app/vscode/history/diff`): 파일의 두 시점 간 unified diff 추출.
+  - **Index 방식**: `fromIndex`/`toIndex` (0=working tree, 1=HEAD, N=HEAD~(N-1)).
+  - **Ref 방식**: `fromRef`/`toRef` (커밋 해시, 브랜치명 등).
+  - `fromIndex=0`(working tree) ↔ `toIndex=1`(HEAD): `repository.diffWithHEAD()` 사용.
+  - 양쪽 모두 커밋 시: `repository.diffBetween()` 사용.
+  - v0.1.4 제약: `fromIndex=0`은 `toIndex=1`만 지원.
+- **FileSearchHandler** (`/app/vscode/fs/findFiles`): 파일명 키워드로 워크스페이스 파일 검색.
+  - `query` 키워드 → `**/*query*` glob 패턴 변환.
+  - `include` glob 지정 시 query가 파일명 부분에 삽입됨 (e.g. `**/*.ts` + `Handler` → `**/*Handler*.ts`).
+  - 결과에 `fileName`, `filePath`(절대), `relativePath`(워크스페이스 상대) 포함.
+- **Git Extension API 타입 선언** (`src/types/git.d.ts`): `GitExtension`, `GitAPI`, `GitRepository`, `GitCommit`, `LogOptions` 인터페이스 추가.
+
+### Changed
+- 프로토콜 버전 v0.1.4로 업데이트.
+- `capabilities` 배열에 3개 신규 토픽 추가.
+
+---
+
 ## [0.1.3] — 2026-03-02
 
 > **Protocol Version: v0.1.3**
@@ -88,7 +164,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/godstale/IDE-Adapter/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/godstale/IDE-Adapter/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/godstale/IDE-Adapter/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/godstale/IDE-Adapter/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/godstale/IDE-Adapter/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/godstale/IDE-Adapter/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/godstale/IDE-Adapter/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/godstale/IDE-Adapter/releases/tag/v0.1.0

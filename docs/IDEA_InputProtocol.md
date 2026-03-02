@@ -4,8 +4,8 @@ CLI 앱에서 IDEA Extension으로 전송하는 메시지 형식 표준.
 
 | 항목 | 값 |
 |------|-----|
-| **Protocol Version** | `v0.1.3` |
-| **App Version** | `v0.1.3` |
+| **Protocol Version** | `v0.1.6` |
+| **App Version** | `v0.1.6` |
 | **최종 수정** | 2026-03-02 |
 
 ---
@@ -60,6 +60,13 @@ Handshake 완료 후 기능 호출 시 사용.
 /app/vscode/nav/references  - 참조 검색
 /app/vscode/diag/list       - 진단(오류·경고) 조회
 /app/vscode/nav/symbols     - 문서 내 심볼 목록
+/app/vscode/history/list          - 파일 git 수정 이력 목록
+/app/vscode/history/diff          - 두 시점 간 unified diff
+/app/vscode/history/rollback      - 파일을 특정 커밋 시점으로 복원
+/app/vscode/fs/findFiles          - 파일명 키워드 검색
+/app/vscode/localhistory/list     - VS Code 로컬 저장 이력 목록
+/app/vscode/localhistory/diff     - 두 로컬 저장 시점 간 unified diff
+/app/vscode/localhistory/rollback - 파일을 특정 로컬 저장 시점으로 복원
 ```
 
 ---
@@ -232,3 +239,198 @@ Handshake 완료 후 기능 호출 시 사용.
 |---------|------|------|------|
 | `filePath` | `string` | ✅ | 심볼을 조회할 파일의 절대 경로 |
 | `query` | `string` | | 심볼 이름 부분 일치 필터 (대소문자 무시). 생략 시 전체 반환 |
+
+---
+
+### `/app/vscode/history/list`
+
+> 특정 파일의 git 커밋 이력 목록을 반환한다.
+
+```json
+{
+  "topic": "/app/vscode/history/list",
+  "requestId": "uuid",
+  "params": {
+    "filePath": "src/extension.ts",
+    "maxCount": 20
+  }
+}
+```
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `filePath` | `string` | ✅ | 이력 조회할 파일 경로 (절대 또는 워크스페이스 상대경로) |
+| `maxCount` | `number` | | 최대 반환 커밋 수 (기본: `20`) |
+
+---
+
+### `/app/vscode/history/diff`
+
+> 파일의 두 시점 간 unified diff를 반환한다. Index 방식 또는 Ref 방식 중 하나를 선택한다.
+>
+> **Index 기준**: `0` = 현재 working tree, `1` = HEAD, `2` = HEAD~1, `N` = HEAD~(N-1)
+>
+> **v0.1.4 제약**: `fromIndex=0` 은 `toIndex=1` (HEAD) 만 지원한다.
+
+**Index 방식 (권장):**
+```json
+{
+  "topic": "/app/vscode/history/diff",
+  "requestId": "uuid",
+  "params": {
+    "filePath": "src/extension.ts",
+    "fromIndex": 0,
+    "toIndex": 1
+  }
+}
+```
+
+**Ref 방식:**
+```json
+{
+  "topic": "/app/vscode/history/diff",
+  "requestId": "uuid",
+  "params": {
+    "filePath": "src/extension.ts",
+    "fromRef": "abc1234",
+    "toRef": "def5678"
+  }
+}
+```
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `filePath` | `string` | ✅ | 비교할 파일 경로 |
+| `fromIndex` | `number` | 조건부 | 비교 시작 시점 인덱스 (0=working tree, 1=HEAD, N=HEAD~(N-1)) |
+| `toIndex` | `number` | 조건부 | 비교 끝 시점 인덱스 |
+| `fromRef` | `string` | 조건부 | git ref (커밋 해시, 브랜치명 등) |
+| `toRef` | `string` | 조건부 | git ref |
+
+> Index 방식과 Ref 방식 중 하나를 사용. Index 방식이 지정되면 우선 적용됨. 둘 다 생략 시 working tree(0) vs HEAD(1) 로 동작.
+
+---
+
+### `/app/vscode/history/rollback`
+
+> 파일을 특정 커밋 인덱스 시점의 내용으로 복원하고 디스크에 저장한다.
+>
+> **Index 기준**: `1` = HEAD, `2` = HEAD~1, `N` = HEAD~(N-1)
+
+```json
+{
+  "topic": "/app/vscode/history/rollback",
+  "requestId": "uuid",
+  "params": {
+    "filePath": "src/extension.ts",
+    "toIndex": 2
+  }
+}
+```
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `filePath` | `string` | ✅ | 복원할 파일 경로 (절대 또는 워크스페이스 상대경로) |
+| `toIndex` | `number` | ✅ | 복원 대상 인덱스 (1=HEAD, 2=HEAD~1, N=HEAD~(N-1)). 반드시 ≥ 1 |
+
+---
+
+### `/app/vscode/fs/findFiles`
+
+> 파일명 키워드로 워크스페이스 내 파일을 검색한다.
+
+```json
+{
+  "topic": "/app/vscode/fs/findFiles",
+  "requestId": "uuid",
+  "params": {
+    "query": "Handler",
+    "include": "**/*.ts",
+    "exclude": "**/node_modules/**",
+    "maxResults": 100
+  }
+}
+```
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `query` | `string` | ✅ | 파일명에 포함될 키워드 (대소문자 무시) |
+| `include` | `string` | | 검색 대상 glob 패턴. query가 파일명 부분에 삽입됨 (기본: `**/*`) |
+| `exclude` | `string` | | 제외 glob 패턴 |
+| `maxResults` | `number` | | 최대 결과 수 (기본: `100`) |
+
+---
+
+## 4. Local History 토픽 (로컬 저장 이력)
+
+> VS Code가 파일 저장 시마다 자동으로 쌓는 로컬 스냅샷에 접근한다.
+> 저장 위치: `{AppData}/Code/User/History/` (VS Code) 또는 `{AppData}/Cursor/User/History/` (Cursor).
+> git과 무관하므로 git 미사용 파일이나 커밋 사이 작업 내역 추적에 유용하다.
+
+### `/app/vscode/localhistory/list`
+
+> 특정 파일의 VS Code 로컬 저장 이력 목록을 반환한다.
+
+```json
+{
+  "topic": "/app/vscode/localhistory/list",
+  "requestId": "uuid",
+  "params": {
+    "filePath": "src/extension.ts"
+  }
+}
+```
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `filePath` | `string` | ✅ | 이력 조회할 파일 경로 (절대 또는 워크스페이스 상대경로) |
+
+> 이력이 없으면 에러 없이 빈 배열 반환.
+
+---
+
+### `/app/vscode/localhistory/diff`
+
+> 두 로컬 저장 시점 간 unified diff를 반환한다.
+
+```json
+{
+  "topic": "/app/vscode/localhistory/diff",
+  "requestId": "uuid",
+  "params": {
+    "filePath": "src/extension.ts",
+    "fromId": "BfNB.ts",
+    "toId": "IOCb.ts"
+  }
+}
+```
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `filePath` | `string` | ✅ | 비교할 파일 경로 |
+| `fromId` | `string` | 조건부 | 비교 시작 저장 ID (`list` 결과의 `id` 값). 생략 시 현재 파일 내용 사용 |
+| `toId` | `string` | 조건부 | 비교 끝 저장 ID. 생략 시 현재 파일 내용 사용 |
+
+> `fromId`와 `toId` 동시 생략 → `INVALID_REQUEST`.
+> 존재하지 않는 ID → `INVALID_REQUEST`.
+
+---
+
+### `/app/vscode/localhistory/rollback`
+
+> 파일을 특정 로컬 저장 시점의 내용으로 복원하고 디스크에 저장한다.
+
+```json
+{
+  "topic": "/app/vscode/localhistory/rollback",
+  "requestId": "uuid",
+  "params": {
+    "filePath": "src/extension.ts",
+    "toId": "BfNB.ts"
+  }
+}
+```
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `filePath` | `string` | ✅ | 복원할 파일 경로 |
+| `toId` | `string` | ✅ | 복원 대상 저장 ID (`list` 결과의 `id` 값) |

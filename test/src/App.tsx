@@ -8,6 +8,7 @@ import './App.css'
 function App() {
   const [userMessage, setUserMessage] = useState('')
   const [chatResponse, setChatResponse] = useState('')
+  const [customRequest, setCustomRequest] = useState('')
 
   const handleSendMessage = async () => {
     const response = await getChatResponse(userMessage)
@@ -22,7 +23,6 @@ function App() {
   }
 
   const handleCustomMessage = async () => {
-    setChatResponse('') // Clear previous response
     await streamChatResponse(userMessage, (message) => {
       setChatResponse((prev) => prev + message)
     })
