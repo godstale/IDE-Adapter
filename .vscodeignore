@@ -4,6 +4,8 @@
 src/**
 test/**
 docs/**
+media/icon_big_transparent.png
+media/icon_big.png
 .gitignore
 .eslintrc*
 eslint.config*
@@ -11,5 +13,3 @@ tsconfig.json
 **/*.map
 **/*.md
 !README.md
-CLAUDE.md
-GEMINI.md

@@ -37,6 +37,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - 프로토콜 버전 v0.1.6으로 업데이트.
 - `capabilities` 배열에 3개 신규 localhistory 토픽 추가.
+- **README**: IDE Adapter Skill 연동 필수 안내 추가, Quick Install 섹션 추가.
+- **패키지 아이콘**: `media/icon.png` 설정 (`package.json` `icon` 필드).
+- **.vscodeignore**: 불필요한 대형 이미지 파일 제외 항목 추가.
 
 ---
 
@@ -164,7 +167,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/godstale/IDE-Adapter/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/godstale/IDE-Adapter/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/godstale/IDE-Adapter/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/godstale/IDE-Adapter/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/godstale/IDE-Adapter/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/godstale/IDE-Adapter/compare/v0.1.2...v0.1.3
