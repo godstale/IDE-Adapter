@@ -33,13 +33,15 @@ function readWorkspaceSettings() {
 }
 
 const settings = readWorkspaceSettings();
-const PORT  = parseInt(process.argv[2] ?? settings['idea.server.port'] ?? '7200', 10);
+const PORT = parseInt(process.argv[2] ?? settings['idea.server.port'] ?? '7200', 10);
 const TOKEN = settings['idea.server.authToken'] ?? '';
 
+const ROOT = path.join(__dirname, '..');
+
 const SRC = {
-  stub:        path.join(__dirname, 'src', 'stub.ts'),
-  app:         path.join(__dirname, 'src', 'App.tsx'),
-  chatService: path.join(__dirname, 'src', 'ai', 'chatService.ts'),
+  stub: path.relative(ROOT, path.join(__dirname, 'src', 'stub.ts')).replace(/\\/g, '/'),
+  app: path.relative(ROOT, path.join(__dirname, 'src', 'App.tsx')).replace(/\\/g, '/'),
+  chatService: path.relative(ROOT, path.join(__dirname, 'src', 'ai', 'chatService.ts')).replace(/\\/g, '/'),
 };
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
@@ -48,11 +50,11 @@ function colorize(str, code) {
   if (!process.stdout.isTTY) return str;
   return `\x1b[${code}m${str}\x1b[0m`;
 }
-const green  = (s) => colorize(s, '32');
-const red    = (s) => colorize(s, '31');
+const green = (s) => colorize(s, '32');
+const red = (s) => colorize(s, '31');
 const yellow = (s) => colorize(s, '33');
-const gray   = (s) => colorize(s, '90');
-const bold   = (s) => colorize(s, '1');
+const gray = (s) => colorize(s, '90');
+const bold = (s) => colorize(s, '1');
 
 // ─── WebSocket helpers ────────────────────────────────────────────────────────
 
@@ -148,7 +150,7 @@ async function main() {
   await test('find "getChatResponse" in test/src/**/*.ts', async () => {
     const res = await req('/app/vscode/edit/find', {
       pattern: 'getChatResponse',
-      include: SRC.chatService.replace(/\\/g, '/'),
+      include: 'test/src/**/*.ts',
     });
     if (res.error) throw new Error(`[${res.error.code}] ${res.error.message}`);
     const count = res.result?.totalCount ?? 0;
@@ -158,8 +160,7 @@ async function main() {
 
   await test('find "IStubService" in stub.ts', async () => {
     const res = await req('/app/vscode/edit/find', {
-      pattern: 'IStubService',
-      include: SRC.stub.replace(/\\/g, '/'),
+      pattern: 'IStubService'
     });
     if (res.error) throw new Error(`[${res.error.code}] ${res.error.message}`);
     const count = res.result?.totalCount ?? 0;
@@ -177,7 +178,7 @@ async function main() {
       character: 17,
     });
     if (res.error) throw new Error(`[${res.error.code}] ${res.error.message}`);
-    const defs = res.result?.definitions ?? [];
+    const defs = res.result?.locations ?? [];
     if (defs.length === 0) throw new Error('Expected at least 1 definition');
     return `${defs.length} definition(s)`;
   });
@@ -192,7 +193,7 @@ async function main() {
       character: 17,
     });
     if (res.error) throw new Error(`[${res.error.code}] ${res.error.message}`);
-    const refs = res.result?.references ?? [];
+    const refs = res.result?.locations ?? [];
     if (refs.length === 0) throw new Error('Expected at least 1 reference');
     return `${refs.length} reference(s)`;
   });

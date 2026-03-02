@@ -18,12 +18,18 @@ export class FileSearchHandler implements IHandler {
     // If no include, use '**/*query*'
     let includeGlob: string;
     if (includeParam) {
-      const ext = path.extname(includeParam);
-      const dir = includeParam.slice(0, includeParam.length - path.basename(includeParam).length);
-      const baseStem = path.basename(includeParam, ext);
-      // Replace the filename part with *query*
-      const newBase = baseStem === '**' || baseStem === '*' ? `*${query}*` : `*${query}*${ext}`;
-      includeGlob = dir + newBase;
+      const normalized = includeParam.replace(/\\/g, '/');
+      if (normalized.endsWith('/**') || normalized.endsWith('/**/*')) {
+        // Preserve recursive pattern: 'dir/**' → 'dir/**/*query*'
+        const base = normalized.endsWith('/**/*') ? normalized.slice(0, -4) : normalized;
+        includeGlob = `${base}/*${query}*`;
+      } else {
+        const ext = path.extname(normalized);
+        const dir = normalized.slice(0, normalized.length - path.basename(normalized).length);
+        const baseStem = path.basename(normalized, ext);
+        const newBase = baseStem === '*' ? `*${query}*` : `*${query}*${ext}`;
+        includeGlob = dir + newBase;
+      }
     } else {
       includeGlob = `**/*${query}*`;
     }

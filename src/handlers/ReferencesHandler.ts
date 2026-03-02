@@ -1,5 +1,15 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { IHandler, HandlerError } from '../protocol/types.js';
+
+function resolveFilePath(filePath: string): string {
+  if (path.isAbsolute(filePath)) return filePath;
+  const folders = vscode.workspace.workspaceFolders;
+  if (folders && folders.length > 0) {
+    return path.join(folders[0].uri.fsPath, filePath);
+  }
+  return path.resolve(filePath);
+}
 
 interface ReferenceLocation {
   filePath: string;
@@ -21,7 +31,7 @@ export class ReferencesHandler implements IHandler {
       throw new HandlerError('INVALID_REQUEST', 'filePath, line, and character are required');
     }
 
-    const uri      = vscode.Uri.file(filePath);
+    const uri      = vscode.Uri.file(resolveFilePath(filePath));
     const position = new vscode.Position(line, character);
 
     // executeReferenceProvider returns Location[] (not LocationLink[])
