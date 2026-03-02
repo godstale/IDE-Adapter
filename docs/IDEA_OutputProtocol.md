@@ -4,8 +4,8 @@ IDEA Extension이 CLI 앱으로 전송하는 메시지 형식 표준.
 
 | 항목 | 값 |
 |------|-----|
-| **Protocol Version** | `v0.1.2` |
-| **App Version** | `v0.1.2` |
+| **Protocol Version** | `v0.1.3` |
+| **App Version** | `v0.1.3` |
 | **최종 수정** | 2026-03-02 |
 
 ---
@@ -17,7 +17,8 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
 ```json
 {
   "type": "handshake",
-  "version": "0.1.2",
+  "version": "0.1.3",
+  "authRequired": true,
   "capabilities": [
     "/app/vscode/edit/find",
     "/app/vscode/edit/replace",
@@ -36,8 +37,23 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
 |------|------|------|
 | `type` | `"handshake"` | 고정값 |
 | `version` | `string` | Extension 버전 |
+| `authRequired` | `boolean` | true이면 이후 요청에 토큰 필요. 핸드셰이크 시 `token` 필드를 포함해야 함 |
 | `capabilities` | `string[]` | 현재 지원하는 topic 목록 |
 | `workspaces` | `string[]` | VS Code에 현재 열려있는 워크스페이스 경로 목록 |
+
+### 인증 실패 응답
+
+토큰이 없거나 잘못된 경우 서버는 아래 응답을 반환한 후 연결을 닫는다.
+
+```json
+{
+  "type": "handshake",
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid or missing authentication token"
+  }
+}
+```
 
 ---
 
@@ -87,6 +103,7 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
 | `INVALID_REQUEST` | topic 또는 requestId 누락, 필수 파라미터 누락 |
 | `UNKNOWN_TOPIC` | 등록되지 않은 topic |
 | `HANDLER_ERROR` | 핸들러 실행 중 내부 오류 |
+| `UNAUTHORIZED` | 인증 토큰이 없거나 잘못됨 (핸드셰이크 단계에서만 발생) |
 
 ---
 

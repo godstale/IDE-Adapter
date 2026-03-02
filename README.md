@@ -4,8 +4,8 @@ VS Code Extension that exposes IDE features (find, replace, go-to-definition, re
 
 | | |
 |---|---|
-| **App Version** | `v0.1.2` |
-| **Protocol Version** | `v0.1.2` |
+| **App Version** | `v0.1.3` |
+| **Protocol Version** | `v0.1.3` |
 
 ## Quick Start
 
@@ -14,18 +14,22 @@ VS Code Extension that exposes IDE features (find, replace, go-to-definition, re
 3. Connect your CLI app and perform a handshake:
 
 ```bash
-# Using wscat
+# Using wscat (auth disabled or token provided)
 wscat -c ws://localhost:7200
-> {"type":"handshake","workspacePath":"/path/to/project"}
-< {"type":"handshake","version":"0.1.2","capabilities":[...]}
+> {"type":"handshake","token":"your-uuid-token"}
+< {"type":"handshake","version":"0.1.3","authRequired":true,"capabilities":[...]}
 ```
+
+**포트 자동 증가**: VS Code 창을 여러 개 열면 각 창의 서버가 7200, 7201, ... 순으로 자동 배정됩니다.
 
 ## Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `idea.server.port` | `7200` | WebSocket server port |
+| `idea.server.port` | `7200` | WebSocket server port (base port; auto-increments on conflict) |
 | `idea.server.autoStart` | `true` | Start server when VS Code opens |
+| `idea.server.authEnabled` | `true` | Enable token-based authentication |
+| `idea.server.authToken` | `""` | Auth token (UUID, auto-generated per workspace). Read from `.vscode/settings.json` |
 | `idea.panel.autoOpen` | `false` | Open IDEA Adapter panel when VS Code opens |
 
 ## Status Bar

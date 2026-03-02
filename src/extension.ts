@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { IdeaServer } from './server/IdeaServer.js';
 import { HandlerRegistry } from './handlers/HandlerRegistry.js';
 import { IdeaLogger } from './logger/IdeaLogger.js';
@@ -9,6 +10,7 @@ import { DefinitionHandler } from './handlers/DefinitionHandler.js';
 import { ReferencesHandler } from './handlers/ReferencesHandler.js';
 import { DiagnosticHandler } from './handlers/DiagnosticHandler.js';
 import { SymbolHandler } from './handlers/SymbolHandler.js';
+import { AuthConfig } from './protocol/types.js';
 
 let server: IdeaServer | null = null;
 let statusBarItem: vscode.StatusBarItem | null = null;
@@ -35,11 +37,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registry.register('/app/vscode/diag/list',        new DiagnosticHandler());
   registry.register('/app/vscode/nav/symbols',      new SymbolHandler());
 
+  // Auth config
+  const authConfig = await getOrCreateAuthConfig();
+
   // Server
   server = new IdeaServer(registry, logger, (port, connections) => {
     updateStatusBar(port, connections);
     panel?.updateServerStatus(port > 0, port, connections);
-  });
+  }, authConfig);
 
   // Sidebar panel
   panel = new IdeaPanel(
@@ -62,6 +67,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const config = vscode.workspace.getConfiguration('idea.server');
       await config.update('port', port, vscode.ConfigurationTarget.Global);
       await startServer(port);
+    },
+    async () => {
+      return getOrCreateAuthConfig();
+    },
+    async (enabled: boolean) => {
+      const config = vscode.workspace.getConfiguration('idea.server');
+      await config.update('authEnabled', enabled, vscode.ConfigurationTarget.Global);
+      const updated = await getOrCreateAuthConfig();
+      server?.updateAuthConfig(updated);
+    },
+    async () => {
+      const newToken = crypto.randomUUID();
+      const config = vscode.workspace.getConfiguration('idea.server');
+      await config.update('authToken', newToken, vscode.ConfigurationTarget.Workspace);
+      const updated = await getOrCreateAuthConfig();
+      server?.updateAuthConfig(updated);
+      return newToken;
     },
   );
 
@@ -103,15 +125,29 @@ export async function deactivate(): Promise<void> {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+async function getOrCreateAuthConfig(): Promise<AuthConfig> {
+  const config = vscode.workspace.getConfiguration('idea.server');
+  const enabled = config.get<boolean>('authEnabled', true);
+  let token = config.get<string>('authToken', '');
+
+  if (enabled && token.trim() === '') {
+    token = crypto.randomUUID();
+    await config.update('authToken', token, vscode.ConfigurationTarget.Workspace);
+  }
+  return { enabled, token };
+}
+
 async function startServer(overridePort?: number): Promise<void> {
   if (!server) { return; }
   const config = vscode.workspace.getConfiguration('idea.server');
   const port = overridePort ?? config.get<number>('port', 7200);
+  const authConfig = await getOrCreateAuthConfig();
+  server.updateAuthConfig(authConfig);
   try {
     await server.start(port);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    vscode.window.showErrorMessage(`IDEA: Failed to start server on port ${port}: ${msg}`);
+    vscode.window.showErrorMessage(`IDEA: Failed to start server: ${msg}`);
     updateStatusBarStopped();
     panel?.updateServerStatus(false, 0, 0);
   }

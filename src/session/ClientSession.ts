@@ -5,11 +5,12 @@ import {
   IdeaErrorResponse,
   ServerHandshake,
   HandlerError,
+  AuthConfig,
 } from '../protocol/types.js';
 import { HandlerRegistry } from '../handlers/HandlerRegistry.js';
 import { IdeaLogger } from '../logger/IdeaLogger.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.3';
 
 export class ClientSession {
   private handshakeDone = false;
@@ -19,6 +20,7 @@ export class ClientSession {
     private readonly registry: HandlerRegistry,
     private readonly clientId: string,
     private readonly logger: IdeaLogger,
+    private readonly authConfig: AuthConfig,
   ) {
     ws.on('message', (raw) => this.onMessage(raw.toString()));
     ws.on('close', () => this.onClose());
@@ -66,12 +68,28 @@ export class ClientSession {
       return;
     }
 
+    // 인증 검증
+    const authRequired = this.authConfig.enabled && this.authConfig.token.length > 0;
+    if (authRequired) {
+      const provided = typeof obj['token'] === 'string' ? obj['token'] : '';
+      if (provided !== this.authConfig.token) {
+        this.sendRaw(JSON.stringify({
+          type: 'handshake',
+          error: { code: 'UNAUTHORIZED', message: 'Invalid or missing authentication token' },
+        }));
+        this.logger.logError(this.clientId, '', '', 'UNAUTHORIZED', 'Invalid or missing token');
+        this.ws.close();
+        return;
+      }
+    }
+
     this.handshakeDone = true;
 
     const workspaces = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
     const response: ServerHandshake = {
       type: 'handshake',
       version: VERSION,
+      authRequired,
       capabilities: this.registry.topics(),
       workspaces,
     };

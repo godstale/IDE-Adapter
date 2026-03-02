@@ -4,8 +4,8 @@ CLI 앱에서 IDEA Extension으로 전송하는 메시지 형식 표준.
 
 | 항목 | 값 |
 |------|-----|
-| **Protocol Version** | `v0.1.2` |
-| **App Version** | `v0.1.2` |
+| **Protocol Version** | `v0.1.3` |
+| **App Version** | `v0.1.3` |
 | **최종 수정** | 2026-03-02 |
 
 ---
@@ -16,15 +16,20 @@ WebSocket 연결 직후 CLI가 반드시 먼저 전송해야 한다.
 서버는 현재 VS Code에 열려있는 워크스페이스 목록을 응답으로 돌려준다.
 클라이언트는 응답에서 사용 가능한 워크스페이스를 확인하고 계속 진행할지 결정한다.
 
+서버에서 `authRequired: true`로 응답한 경우, 이후 요청은 토큰 없이 거부된다.
+따라서 `.vscode/settings.json`의 `idea.server.authToken` 값을 핸드셰이크 시 포함해야 한다.
+
 ```json
 {
-  "type": "handshake"
+  "type": "handshake",
+  "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 }
 ```
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `type` | `"handshake"` | 고정값 |
+| `token` | `string` | 인증 토큰. 서버의 `authRequired`가 true일 때 필수. `.vscode/settings.json`의 `idea.server.authToken` 값 |
 
 ---
 

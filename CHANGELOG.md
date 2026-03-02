@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.3] — 2026-03-02
+
+> **Protocol Version: v0.1.3**
+
+### Added
+- **포트 자동 증가**: 포트 충돌(EADDRINUSE) 시 자동으로 다음 포트 시도 (최대 10회). 여러 VS Code 창에서 동시 사용 가능 (7200, 7201, ...).
+- **토큰 인증**: `idea.server.authEnabled` (전역, 기본값: `true`), `idea.server.authToken` (워크스페이스) 설정 추가.
+  - 인증 활성화 시 UUID v4 토큰 자동 생성, `.vscode/settings.json`에 저장.
+  - 핸드셰이크에 `token` 필드 추가 (인증 활성화 시 필수).
+  - 핸드셰이크 응답에 `authRequired: boolean` 추가.
+  - 새 에러코드: `UNAUTHORIZED`.
+- **Settings UI 인증 섹션**: 토큰 인증 토글, 토큰 표시, 복사/재생성 버튼.
+
+### Changed
+- 프로토콜 버전 v0.1.3으로 업데이트.
+
+---
+
 ## [0.1.2] — 2026-03-02
 
 > **Protocol Version: v0.1.2**
