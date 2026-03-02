@@ -4,8 +4,8 @@ IDEA Extension이 CLI 앱으로 전송하는 메시지 형식 표준.
 
 | 항목 | 값 |
 |------|-----|
-| **Protocol Version** | `v0.1.3` |
-| **App Version** | `v0.1.3` |
+| **Protocol Version** | `v0.1.6` |
+| **App Version** | `v0.1.6` |
 | **최종 수정** | 2026-03-02 |
 
 ---
@@ -17,7 +17,7 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
 ```json
 {
   "type": "handshake",
-  "version": "0.1.3",
+  "version": "0.1.6",
   "authRequired": true,
   "capabilities": [
     "/app/vscode/edit/find",
@@ -25,7 +25,14 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
     "/app/vscode/nav/definition",
     "/app/vscode/nav/references",
     "/app/vscode/diag/list",
-    "/app/vscode/nav/symbols"
+    "/app/vscode/nav/symbols",
+    "/app/vscode/history/list",
+    "/app/vscode/history/diff",
+    "/app/vscode/history/rollback",
+    "/app/vscode/fs/findFiles",
+    "/app/vscode/localhistory/list",
+    "/app/vscode/localhistory/diff",
+    "/app/vscode/localhistory/rollback"
   ],
   "workspaces": [
     "/absolute/path/to/project"
@@ -308,3 +315,190 @@ CLI의 Handshake에 대한 응답. 연결 성공 시 서버 정보와 지원 기
 | `symbols[].selectionCharacter` | `number` | 심볼 이름 선택 범위 컬럼 (0-indexed) |
 | `symbols[].containerName` | `string \| null` | 부모 심볼 이름 (중첩 심볼). 최상위면 `null` |
 | `totalCount` | `number` | 전체 심볼 수 |
+
+---
+
+### `/app/vscode/history/list`
+
+```json
+{
+  "topic": "/app/vscode/history/list",
+  "requestId": "uuid",
+  "result": {
+    "entries": [
+      {
+        "index": 1,
+        "hash": "abc1234def5678901234567890abcdef12345678",
+        "shortHash": "abc1234",
+        "message": "feat: add FileHistoryHandler",
+        "authorName": "godstale",
+        "authorEmail": "user@example.com",
+        "authorDate": "2026-03-02T10:00:00.000Z"
+      }
+    ],
+    "totalCount": 1
+  }
+}
+```
+
+| 결과 필드 | 타입 | 설명 |
+|---------|------|------|
+| `entries` | `array` | 커밋 이력 목록 (최신 순) |
+| `entries[].index` | `number` | 1=HEAD, 2=HEAD~1, … (diff 요청 시 toIndex/fromIndex 에 사용) |
+| `entries[].hash` | `string` | 전체 커밋 해시 (40자) |
+| `entries[].shortHash` | `string` | 단축 해시 (7자) |
+| `entries[].message` | `string` | 커밋 메시지 |
+| `entries[].authorName` | `string \| null` | 커밋 작성자 이름 |
+| `entries[].authorEmail` | `string \| null` | 커밋 작성자 이메일 |
+| `entries[].authorDate` | `string \| null` | 커밋 날짜 (ISO 8601) |
+| `totalCount` | `number` | 반환된 커밋 수 |
+
+---
+
+### `/app/vscode/history/diff`
+
+```json
+{
+  "topic": "/app/vscode/history/diff",
+  "requestId": "uuid",
+  "result": {
+    "diff": "--- a/src/extension.ts\n+++ b/src/extension.ts\n@@ -1,5 +1,6 @@\n ...",
+    "fromRef": "working-tree",
+    "toRef": "HEAD"
+  }
+}
+```
+
+| 결과 필드 | 타입 | 설명 |
+|---------|------|------|
+| `diff` | `string` | unified diff 텍스트. 변경 없으면 빈 문자열 |
+| `fromRef` | `string` | 실제 사용된 from ref (`"working-tree"` = index 0) |
+| `toRef` | `string` | 실제 사용된 to ref |
+
+---
+
+### `/app/vscode/history/rollback`
+
+```json
+{
+  "topic": "/app/vscode/history/rollback",
+  "requestId": "uuid",
+  "result": {
+    "filePath": "/abs/path/src/extension.ts",
+    "toRef": "HEAD~1",
+    "restoredIndex": 2
+  }
+}
+```
+
+| 결과 필드 | 타입 | 설명 |
+|---------|------|------|
+| `filePath` | `string` | 복원된 파일의 절대 경로 |
+| `toRef` | `string` | 복원에 사용된 git ref (예: `"HEAD"`, `"HEAD~1"`) |
+| `restoredIndex` | `number` | 복원에 사용된 인덱스 (요청의 `toIndex`와 동일) |
+
+---
+
+### `/app/vscode/fs/findFiles`
+
+```json
+{
+  "topic": "/app/vscode/fs/findFiles",
+  "requestId": "uuid",
+  "result": {
+    "files": [
+      {
+        "fileName": "FileHistoryHandler.ts",
+        "filePath": "/abs/path/src/handlers/FileHistoryHandler.ts",
+        "relativePath": "src/handlers/FileHistoryHandler.ts"
+      }
+    ],
+    "totalCount": 1
+  }
+}
+```
+
+| 결과 필드 | 타입 | 설명 |
+|---------|------|------|
+| `files` | `array` | 검색된 파일 목록 |
+| `files[].fileName` | `string` | 파일명 (확장자 포함) |
+| `files[].filePath` | `string` | 파일 절대 경로 |
+| `files[].relativePath` | `string` | 워크스페이스 루트 기준 상대경로 |
+| `totalCount` | `number` | 검색된 파일 수 |
+
+---
+
+## 5. Local History 결과
+
+### `/app/vscode/localhistory/list`
+
+```json
+{
+  "topic": "/app/vscode/localhistory/list",
+  "requestId": "uuid",
+  "result": {
+    "entries": [
+      {
+        "id": "IOCb.ts",
+        "timestamp": 1724587051951,
+        "timestampLabel": "2024-08-25 10:17:31",
+        "source": "Workspace Edit"
+      }
+    ],
+    "totalCount": 1
+  }
+}
+```
+
+| 결과 필드 | 타입 | 설명 |
+|---------|------|------|
+| `entries` | `array` | 로컬 저장 이력 목록 (최신 순) |
+| `entries[].id` | `string` | 저장 파일 ID (예: `"IOCb.ts"`). diff/rollback 요청 시 사용 |
+| `entries[].timestamp` | `number` | 저장 시각 (밀리초 epoch) |
+| `entries[].timestampLabel` | `string` | 저장 시각 (사람이 읽기 좋은 형식, 예: `"2024-08-25 10:17:31"`) |
+| `entries[].source` | `string \| undefined` | 저장 트리거 (예: `"Workspace Edit"`, undefined이면 일반 저장) |
+| `totalCount` | `number` | 이력 개수 (이력 없으면 0) |
+
+---
+
+### `/app/vscode/localhistory/diff`
+
+```json
+{
+  "topic": "/app/vscode/localhistory/diff",
+  "requestId": "uuid",
+  "result": {
+    "diff": "--- 2024-08-24 09:00:00\n+++ 2024-08-25 10:17:31\n@@ -1,5 +1,6 @@\n ...",
+    "fromLabel": "2024-08-24 09:00:00",
+    "toLabel": "2024-08-25 10:17:31"
+  }
+}
+```
+
+| 결과 필드 | 타입 | 설명 |
+|---------|------|------|
+| `diff` | `string` | unified diff 텍스트. 변경 없으면 빈 문자열 |
+| `fromLabel` | `string` | 비교 시작 시각 레이블 (`"current"` 또는 타임스탬프 문자열) |
+| `toLabel` | `string` | 비교 끝 시각 레이블 (`"current"` 또는 타임스탬프 문자열) |
+
+---
+
+### `/app/vscode/localhistory/rollback`
+
+```json
+{
+  "topic": "/app/vscode/localhistory/rollback",
+  "requestId": "uuid",
+  "result": {
+    "filePath": "/abs/path/src/extension.ts",
+    "restoredId": "BfNB.ts",
+    "restoredLabel": "2024-08-24 09:00:00"
+  }
+}
+```
+
+| 결과 필드 | 타입 | 설명 |
+|---------|------|------|
+| `filePath` | `string` | 복원된 파일의 절대 경로 |
+| `restoredId` | `string` | 복원에 사용된 저장 ID |
+| `restoredLabel` | `string` | 복원 시점 타임스탬프 레이블 |

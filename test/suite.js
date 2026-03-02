@@ -39,15 +39,20 @@ const settings = readWorkspaceSettings();
 const PORT  = parseInt(process.argv[2] ?? settings['idea.server.port'] ?? '7200', 10);
 const TOKEN = settings['idea.server.authToken'] ?? '';
 
-// Navigation 테스트에 사용할 소스 파일 (test/src/ 안의 스텁 파일 — 워크스페이스 독립)
+// 테스트에 사용할 소스 파일 (test/src/ — VS Code에서 직접 확인 가능)
 //
 //   stub.ts 심볼 위치 (0-indexed):
 //   Line  2, char 17 → IStubService 인터페이스 선언
 //   Line  7, char 13 → StubServiceError 클래스 선언
 //   Line 11, char 13 → StubServiceImpl 클래스 선언
 //   Line 21, char 16 → createStubService 함수 선언
+//
+//   chatService.ts 주요 심볼:
+//   getChatResponse(line 24), streamChatResponse(line 50)
 const SRC = {
-  stub: path.join(__dirname, 'src', 'stub.ts'),
+  stub:        path.join(__dirname, 'src', 'stub.ts'),
+  app:         path.join(__dirname, 'src', 'App.tsx'),
+  chatService: path.join(__dirname, 'src', 'ai', 'chatService.ts'),
 };
 
 // ─── WebSocket 연결 ────────────────────────────────────────────────────────────
@@ -680,15 +685,15 @@ async function main() {
     assertTrue(res.result.totalCount === res.result.diagnostics.length, 'totalCount must match array length');
   });
 
-  await test('filePath: 특정 파일 진단 결과만 반환', async () => {
-    const res = await req('/app/vscode/diag/list', { filePath: SRC.stub });
+  await test('filePath: App.tsx 진단 결과만 반환 (VS Code에서 직접 비교 가능)', async () => {
+    const res = await req('/app/vscode/diag/list', { filePath: SRC.app });
     assertSuccess(res, 'diag-file');
     assertTrue(Array.isArray(res.result.diagnostics), 'diagnostics must be array');
-    const normalizedStub = SRC.stub.replace(/\\/g, '/').toLowerCase();
+    const normalizedApp = SRC.app.replace(/\\/g, '/').toLowerCase();
     for (const d of res.result.diagnostics) {
       assertTrue(
-        d.filePath.replace(/\\/g, '/').toLowerCase() === normalizedStub,
-        `all diagnostics must be from stub.ts, got: ${d.filePath}`,
+        d.filePath.replace(/\\/g, '/').toLowerCase() === normalizedApp,
+        `all diagnostics must be from App.tsx, got: ${d.filePath}`,
       );
     }
   });
@@ -815,6 +820,299 @@ async function main() {
     assertTrue(Array.isArray(res.result.symbols),   'symbols must be array');
     assertTrue(res.result.symbols.length === 0,     'non-existent file must return empty array');
     assertTrue(res.result.totalCount === 0,         'totalCount must be 0');
+  });
+
+  await test('chatService.ts: getChatResponse / streamChatResponse 심볼 포함', async () => {
+    const res = await req('/app/vscode/nav/symbols', { filePath: SRC.chatService });
+    assertSuccess(res, 'sym-chatservice');
+    assertTrue(res.result.totalCount > 0, 'chatService.ts must have symbols');
+    const names = res.result.symbols.map((s) => s.name);
+    assertTrue(
+      names.some((n) => n === 'getChatResponse'),
+      `"getChatResponse" must be in chatService.ts symbols, got: [${names.join(', ')}]`,
+    );
+    assertTrue(
+      names.some((n) => n === 'streamChatResponse'),
+      `"streamChatResponse" must be in chatService.ts symbols, got: [${names.join(', ')}]`,
+    );
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/history/list
+  //  test/src/stub.ts의 git 커밋 이력 조회
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/history/list');
+
+  await test('filePath 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/history/list', {});
+    assertError(res, 'INVALID_REQUEST', 'hist-no-filePath');
+  });
+
+  await test('success: stub.ts → entries 배열 + totalCount 반환', async () => {
+    const res = await req('/app/vscode/history/list', { filePath: SRC.stub });
+    assertSuccess(res, 'hist-basic');
+    assertHas(res.result, 'entries', 'totalCount');
+    assertTrue(Array.isArray(res.result.entries),          'entries must be array');
+    assertTrue(typeof res.result.totalCount === 'number',  'totalCount must be number');
+    assertTrue(res.result.totalCount > 0,                  'stub.ts must have commit history');
+  });
+
+  await test('maxCount=1 → entries.length <= 1', async () => {
+    const res = await req('/app/vscode/history/list', { filePath: SRC.stub, maxCount: 1 });
+    assertSuccess(res, 'hist-maxCount');
+    assertTrue(
+      res.result.entries.length <= 1,
+      `maxCount=1 must limit results, got ${res.result.entries.length}`,
+    );
+  });
+
+  await test('entries 구조: 필수 필드 존재 확인', async () => {
+    const res = await req('/app/vscode/history/list', { filePath: SRC.stub });
+    assertSuccess(res, 'hist-structure');
+    assertTrue(res.result.entries.length > 0, 'entries must not be empty');
+    const e = res.result.entries[0];
+    assertHas(e, 'index', 'hash', 'shortHash', 'message', 'authorName', 'authorEmail', 'authorDate');
+    assertTrue(typeof e.index === 'number',       'e.index must be number');
+    assertTrue(typeof e.hash === 'string',        'e.hash must be string');
+    assertTrue(typeof e.shortHash === 'string',   'e.shortHash must be string');
+    assertTrue(typeof e.message === 'string',     'e.message must be string');
+    assertTrue(e.index === 1,                     'first entry must have index 1 (HEAD)');
+    assertTrue(e.shortHash.length === 7,          'shortHash must be 7 chars');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/history/diff
+  //  stub.ts의 두 시점 간 unified diff 추출
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/history/diff');
+
+  await test('filePath 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/history/diff', {});
+    assertError(res, 'INVALID_REQUEST', 'diff-no-filePath');
+  });
+
+  await test('파라미터 없음 (기본값) → working tree vs HEAD diff 반환', async () => {
+    const res = await req('/app/vscode/history/diff', { filePath: SRC.stub });
+    assertSuccess(res, 'diff-default');
+    assertHas(res.result, 'diff', 'fromRef', 'toRef');
+    assertTrue(typeof res.result.diff === 'string',    'diff must be string');
+    assertTrue(typeof res.result.fromRef === 'string', 'fromRef must be string');
+    assertTrue(typeof res.result.toRef === 'string',   'toRef must be string');
+    assertTrue(res.result.fromRef === 'working-tree',  'default fromRef must be "working-tree"');
+    assertTrue(res.result.toRef === 'HEAD',            'default toRef must be "HEAD"');
+  });
+
+  await test('fromIndex=0, toIndex=1 → working-tree/HEAD 레이블 확인', async () => {
+    const res = await req('/app/vscode/history/diff', {
+      filePath: SRC.stub, fromIndex: 0, toIndex: 1,
+    });
+    assertSuccess(res, 'diff-wt-head');
+    assertTrue(res.result.fromRef === 'working-tree', 'fromRef must be "working-tree"');
+    assertTrue(res.result.toRef === 'HEAD',           'toRef must be "HEAD"');
+  });
+
+  await test('fromIndex=0, toIndex=2 → INVALID_REQUEST (working tree는 HEAD만 지원)', async () => {
+    const res = await req('/app/vscode/history/diff', {
+      filePath: SRC.stub, fromIndex: 0, toIndex: 2,
+    });
+    assertError(res, 'INVALID_REQUEST', 'diff-wt-invalid-toIndex');
+  });
+
+  await test('fromIndex=1, toIndex=0 → INVALID_REQUEST (toIndex=0 불가)', async () => {
+    const res = await req('/app/vscode/history/diff', {
+      filePath: SRC.stub, fromIndex: 1, toIndex: 0,
+    });
+    assertError(res, 'INVALID_REQUEST', 'diff-commit-toIndex-zero');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/fs/findFiles
+  //  파일명 키워드로 워크스페이스 파일 검색
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/fs/findFiles');
+
+  await test('query 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/fs/findFiles', {});
+    assertError(res, 'INVALID_REQUEST', 'search-no-query');
+  });
+
+  await test('query="chatService" → chatService.ts 포함 결과 반환', async () => {
+    const res = await req('/app/vscode/fs/findFiles', { query: 'chatService' });
+    assertSuccess(res, 'search-basic');
+    assertHas(res.result, 'files', 'totalCount');
+    assertTrue(Array.isArray(res.result.files),           'files must be array');
+    assertTrue(typeof res.result.totalCount === 'number', 'totalCount must be number');
+    assertTrue(res.result.totalCount > 0,                 'query "chatService" must find results');
+    const found = res.result.files.some((f) =>
+      f.fileName.toLowerCase().includes('chatservice'),
+    );
+    assertTrue(found, 'chatService.ts must be in search results for query "chatService"');
+  });
+
+  await test('files 구조: fileName, filePath, relativePath 필드 존재', async () => {
+    const res = await req('/app/vscode/fs/findFiles', { query: 'chatService' });
+    assertSuccess(res, 'search-structure');
+    assertTrue(res.result.files.length > 0, 'files must not be empty');
+    const f = res.result.files[0];
+    assertHas(f, 'fileName', 'filePath', 'relativePath');
+    assertTrue(typeof f.fileName     === 'string', 'f.fileName must be string');
+    assertTrue(typeof f.filePath     === 'string', 'f.filePath must be string');
+    assertTrue(typeof f.relativePath === 'string', 'f.relativePath must be string');
+    // relativePath는 워크스페이스 루트 기준 상대경로여야 함
+    assertTrue(!path.isAbsolute(f.relativePath), 'relativePath must be relative (not absolute)');
+  });
+
+  await test('query="stub" → stub.ts 포함 결과 반환', async () => {
+    const res = await req('/app/vscode/fs/findFiles', { query: 'stub' });
+    assertSuccess(res, 'search-stub');
+    assertTrue(res.result.totalCount > 0, 'query "stub" must find results');
+    const found = res.result.files.some((f) => f.fileName.toLowerCase().includes('stub'));
+    assertTrue(found, 'stub.ts must be in search results for query "stub"');
+  });
+
+  await test('include glob 적용: include="**/*.ts", query="chatService" → .ts 파일만', async () => {
+    const res = await req('/app/vscode/fs/findFiles', { query: 'chatService', include: '**/*.ts' });
+    assertSuccess(res, 'search-include');
+    assertTrue(res.result.totalCount > 0, 'must find .ts files matching "chatService"');
+    for (const f of res.result.files) {
+      assertTrue(f.fileName.endsWith('.ts'), `all files must be .ts: got ${f.fileName}`);
+    }
+  });
+
+  await test('존재하지 않는 query → totalCount: 0, files: []', async () => {
+    const res = await req('/app/vscode/fs/findFiles', { query: 'xXx_NONEXISTENT_FILE_xXx' });
+    assertSuccess(res, 'search-no-match');
+    assertTrue(res.result.totalCount === 0,   'totalCount must be 0');
+    assertTrue(res.result.files.length === 0, 'files must be empty array');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/history/rollback
+  //  stub.ts를 HEAD(index=1)로 롤백 — 이미 HEAD 상태와 동일하면 내용 변경 없이 성공.
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/history/rollback');
+
+  await test('filePath 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/history/rollback', { toIndex: 1 });
+    assertError(res, 'INVALID_REQUEST', 'rollback-no-filePath');
+  });
+
+  await test('toIndex 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/history/rollback', { filePath: SRC.stub });
+    assertError(res, 'INVALID_REQUEST', 'rollback-no-toIndex');
+  });
+
+  await test('toIndex = 0 (working tree, invalid) → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/history/rollback', { filePath: SRC.stub, toIndex: 0 });
+    assertError(res, 'INVALID_REQUEST', 'rollback-toIndex-zero');
+  });
+
+  await test('toIndex가 string 타입 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/history/rollback', { filePath: SRC.stub, toIndex: '1' });
+    assertError(res, 'INVALID_REQUEST', 'rollback-toIndex-wrong-type');
+  });
+
+  await test('success: stub.ts + toIndex=1 (HEAD) → result 구조 검증', async () => {
+    const res = await req('/app/vscode/history/rollback', { filePath: SRC.stub, toIndex: 1 });
+    assertSuccess(res, 'rollback-success');
+    assertHas(res.result, 'filePath', 'toRef', 'restoredIndex');
+    assertTrue(typeof res.result.filePath === 'string',       'filePath must be string');
+    assertTrue(res.result.toRef === 'HEAD',                   'toRef must be "HEAD" for toIndex=1');
+    assertTrue(res.result.restoredIndex === 1,                'restoredIndex must equal toIndex');
+    assertTrue(
+      res.result.filePath.replace(/\\/g, '/').includes('/test/src/stub'),
+      `filePath must reference stub.ts, got: ${res.result.filePath}`,
+    );
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/localhistory/list
+  //  VS Code 로컬 저장 이력 목록 조회
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/localhistory/list');
+
+  await test('filePath 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/localhistory/list', {});
+    assertError(res, 'INVALID_REQUEST', 'lhlist-no-filePath');
+  });
+
+  await test('success: stub.ts → entries 배열 + totalCount 반환 (이력 없어도 정상)', async () => {
+    const res = await req('/app/vscode/localhistory/list', { filePath: SRC.stub });
+    assertSuccess(res, 'lhlist-stub-success');
+    assertHas(res.result, 'entries', 'totalCount');
+    assertTrue(Array.isArray(res.result.entries),           'entries must be array');
+    assertTrue(typeof res.result.totalCount === 'number',  'totalCount must be number');
+    assertTrue(res.result.totalCount === res.result.entries.length, 'totalCount must equal entries.length');
+  });
+
+  await test('이력 있는 경우 entries 구조 검증: id, timestamp, timestampLabel 포함', async () => {
+    const res = await req('/app/vscode/localhistory/list', { filePath: SRC.stub });
+    assertSuccess(res, 'lhlist-structure');
+    if (res.result.entries.length > 0) {
+      const e = res.result.entries[0];
+      assertHas(e, 'id', 'timestamp', 'timestampLabel');
+      assertTrue(typeof e.id             === 'string', 'e.id must be string');
+      assertTrue(typeof e.timestamp      === 'number', 'e.timestamp must be number');
+      assertTrue(typeof e.timestampLabel === 'string', 'e.timestampLabel must be string');
+    }
+  });
+
+  await test('이력 없어도 에러 없이 빈 배열 반환 (totalCount === 0)', async () => {
+    // 존재하지 않는 파일 경로로 요청 — 이력이 있을 리 없으므로 빈 배열 반환
+    const res = await req('/app/vscode/localhistory/list', {
+      filePath: 'test/src/xXx_NONEXISTENT_xXx.ts',
+    });
+    assertSuccess(res, 'lhlist-no-history');
+    assertTrue(res.result.totalCount === 0,          'totalCount must be 0');
+    assertTrue(res.result.entries.length === 0,      'entries must be empty array');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/localhistory/diff
+  //  두 로컬 저장 시점 간 unified diff
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/localhistory/diff');
+
+  await test('filePath 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/localhistory/diff', { toId: 'IOCb.ts' });
+    assertError(res, 'INVALID_REQUEST', 'lhdiff-no-filePath');
+  });
+
+  await test('fromId, toId 모두 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/localhistory/diff', { filePath: SRC.stub });
+    assertError(res, 'INVALID_REQUEST', 'lhdiff-no-ids');
+  });
+
+  await test('존재하지 않는 toId → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/localhistory/diff', {
+      filePath: SRC.stub,
+      toId: 'xXx_NONEXISTENT_SAVE_ID_xXx.ts',
+    });
+    assertError(res, 'INVALID_REQUEST', 'lhdiff-invalid-toId');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  /app/vscode/localhistory/rollback
+  //  로컬 저장 시점으로 파일 복원
+  // ════════════════════════════════════════════════════════════════════════════
+  section('/app/vscode/localhistory/rollback');
+
+  await test('filePath 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/localhistory/rollback', { toId: 'IOCb.ts' });
+    assertError(res, 'INVALID_REQUEST', 'lhrollback-no-filePath');
+  });
+
+  await test('toId 누락 → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/localhistory/rollback', { filePath: SRC.stub });
+    assertError(res, 'INVALID_REQUEST', 'lhrollback-no-toId');
+  });
+
+  await test('존재하지 않는 toId → INVALID_REQUEST', async () => {
+    const res = await req('/app/vscode/localhistory/rollback', {
+      filePath: SRC.stub,
+      toId: 'xXx_NONEXISTENT_SAVE_ID_xXx.ts',
+    });
+    assertError(res, 'INVALID_REQUEST', 'lhrollback-invalid-toId');
   });
 
   // ════════════════════════════════════════════════════════════════════════════

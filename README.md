@@ -1,100 +1,198 @@
 # IDEA — Integrated Development Environment Adapter
 
-VS Code Extension that exposes IDE features (find, replace, go-to-definition, references, diagnostics, symbols) to external CLI applications via a local WebSocket server.
+> Expose VS Code IDE features to external CLI apps and AI agents via a local WebSocket server.
 
 | | |
 |---|---|
-| **App Version** | `v0.1.3` |
-| **Protocol Version** | `v0.1.3` |
+| **App Version** | `v0.1.6` |
+| **Protocol Version** | `v0.1.6` |
 
-## Quick Start
+**[한국어 README](docs/README_ko.md)**
 
-1. Install the extension in VS Code / Cursor
-2. The WebSocket server starts automatically on port **7200**
-3. Connect your CLI app and perform a handshake:
+---
 
-```bash
-# Using wscat (auth disabled or token provided)
-wscat -c ws://localhost:7200
-> {"type":"handshake","token":"your-uuid-token"}
-< {"type":"handshake","version":"0.1.3","authRequired":true,"capabilities":[...]}
+## What is IDEA?
+
+IDEA is a VS Code extension that starts a local WebSocket server (default port **7200**). Any external program — a CLI tool, an AI agent, a script — can connect and use VS Code's built-in language intelligence: find & replace, go-to-definition, references, diagnostics, symbols, git history, and more.
+
+```
+External CLI / AI Agent
+        │  WebSocket (ws://localhost:7200)
+        ▼
+  ┌─────────────────────────────┐
+  │  IDEA VS Code Extension     │
+  │  ├─ Find / Replace          │
+  │  ├─ Go to Definition        │
+  │  ├─ Find References         │
+  │  ├─ Diagnostics             │
+  │  ├─ Symbols                 │
+  │  ├─ Git History & Diff      │
+  │  └─ Local History           │
+  └─────────────────────────────┘
 ```
 
-**포트 자동 증가**: VS Code 창을 여러 개 열면 각 창의 서버가 7200, 7201, ... 순으로 자동 배정됩니다.
+---
 
-## Settings
+## Installation
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `idea.server.port` | `7200` | WebSocket server port (base port; auto-increments on conflict) |
-| `idea.server.autoStart` | `true` | Start server when VS Code opens |
-| `idea.server.authEnabled` | `true` | Enable token-based authentication |
-| `idea.server.authToken` | `""` | Auth token (UUID, auto-generated per workspace). Read from `.vscode/settings.json` |
-| `idea.panel.autoOpen` | `false` | Open IDEA Adapter panel when VS Code opens |
+### From VSIX (recommended)
 
-## Status Bar
+1. Download the latest `.vsix` file from [Releases](https://github.com/godstale/IDE-Adapter/releases)
+2. In VS Code: **Extensions** → `...` menu → **Install from VSIX...**
+3. Select the downloaded file
 
-The status bar item (bottom-right) shows:
-- `$(radio-tower) IDEA :7200 (2)` — running on port 7200 with 2 clients
-- `$(debug-disconnect) IDEA (stopped)` — server not running
-
-Click it to toggle the server on/off.
-
-## Protocol
-
-See [`docs/IDEA_InputProtocol.md`](docs/IDEA_InputProtocol.md) and [`docs/IDEA_OutputProtocol.md`](docs/IDEA_OutputProtocol.md) for the full message format specification.
-
-## Supported Topics
-
-| Topic | Description |
-|-------|-------------|
-| `/app/vscode/edit/find` | Search for text in files |
-| `/app/vscode/edit/replace` | Replace text in files |
-| `/app/vscode/nav/definition` | Go to symbol definition |
-| `/app/vscode/nav/references` | Find all references |
-| `/app/vscode/diag/list` | List diagnostics (errors/warnings) for a file or workspace |
-| `/app/vscode/nav/symbols` | List symbols (functions, classes, interfaces, etc.) in a file |
-
-## Testing
-
-`test/` 폴더를 워크스페이스에 복사하면 어디서든 테스트할 수 있습니다.
-
-**사전 준비**: VS Code에서 **F5**로 Extension Development Host 실행
-
-포트와 인증 토큰은 `.vscode/settings.json`에서 자동으로 읽어옵니다.
+### Build from source
 
 ```bash
-# 전체 자동화 테스트 (모든 핸들러 검증)
-node test/suite.js
-
-# 대화형 CLI 도구
-node test/test.js sym test/src/App.tsx
-node test/test.js find "IStubService" --include=test/src/**/*.ts
-node test/test.js def "IStubService" --include=test/src/**/*.ts
-node test/test.js diag test/src/App.tsx
-```
-
-네비게이션 테스트는 `test/src/stub.ts`의 고정된 심볼 위치를 사용하므로 어느 워크스페이스에서나 동작합니다.
-
-## Development
-
-```bash
+git clone https://github.com/godstale/IDE-Adapter.git
+cd IDE-Adapter
 npm install
 npm run compile
 # Press F5 in VS Code to launch Extension Development Host
 ```
 
-## VSIX 패키지 생성 방법
+To build a VSIX package:
 
-- 패키지 설치를 위해 vsce 설치
-```
-  brew install node    # mac
-  npm install -g vsce  # windows
-```
-
-- 프로젝트 root 폴더 안에서 패키징 명령어 실행
-```
-  vsce package
+```bash
+npm install -g vsce
+vsce package
 ```
 
-- 생성된 VSIX 패키징 파일을 VS Code > Extensions > ... > Install from VSIX... 실행 후 패키지 파일 선택
+---
+
+## Quick Start
+
+Once installed, the WebSocket server starts automatically on port **7200**.
+
+### 1. Connect and handshake
+
+```bash
+# Install wscat if needed
+npm install -g wscat
+
+# Connect (with auth token from .vscode/settings.json)
+wscat -c ws://localhost:7200
+> {"type":"handshake","token":"your-uuid-token"}
+< {"type":"handshake","version":"0.1.6","authRequired":true,"capabilities":[...]}
+```
+
+### 2. Send a request
+
+```json
+{
+  "topic": "/app/vscode/edit/find",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "params": {
+    "pattern": "IStubService",
+    "include": "src/**/*.ts"
+  }
+}
+```
+
+### 3. Receive the result
+
+```json
+{
+  "topic": "/app/vscode/edit/find",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "result": {
+    "matches": [
+      { "filePath": "/workspace/src/stub.ts", "line": 2, "lineText": "interface IStubService {" }
+    ],
+    "totalCount": 1
+  }
+}
+```
+
+> **Multiple VS Code windows**: If you open multiple windows, each window gets its own port (7200, 7201, …). The actual port is saved to `.vscode/settings.json` automatically.
+
+---
+
+## Authentication
+
+When auth is enabled (default), a UUID token is auto-generated and stored in `.vscode/settings.json`:
+
+```json
+{
+  "idea.server.port": 7200,
+  "idea.server.authToken": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+Include the token in every handshake message. You can manage the token from the IDEA sidebar panel.
+
+---
+
+## Supported Topics
+
+| Topic | Description |
+|-------|-------------|
+| `/app/vscode/edit/find` | Search for text or regex in files |
+| `/app/vscode/edit/replace` | Replace text in files |
+| `/app/vscode/nav/definition` | Go to symbol definition |
+| `/app/vscode/nav/references` | Find all references to a symbol |
+| `/app/vscode/diag/list` | List diagnostics (errors / warnings) |
+| `/app/vscode/nav/symbols` | List symbols in a file |
+| `/app/vscode/history/list` | List git commit history for a file |
+| `/app/vscode/history/diff` | Unified diff between two git commits |
+| `/app/vscode/history/rollback` | Restore a file to a specific commit |
+| `/app/vscode/fs/findFiles` | Search files by filename keyword |
+| `/app/vscode/localhistory/list` | List VS Code local save history entries |
+| `/app/vscode/localhistory/diff` | Diff between two local history saves |
+| `/app/vscode/localhistory/rollback` | Restore a file to a local history save |
+
+Full message format: [`docs/IDEA_InputProtocol.md`](docs/IDEA_InputProtocol.md) · [`docs/IDEA_OutputProtocol.md`](docs/IDEA_OutputProtocol.md)
+
+---
+
+## Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `idea.server.port` | `7200` | Base port (auto-increments on conflict) |
+| `idea.server.autoStart` | `true` | Start server when VS Code opens |
+| `idea.server.authEnabled` | `true` | Enable token authentication |
+| `idea.server.authToken` | `""` | Auth token (UUID, auto-generated) |
+| `idea.server.exposeToken` | `true` | Save token to `.vscode/settings.json` |
+| `idea.panel.autoOpen` | `false` | Open IDEA panel on VS Code startup |
+
+---
+
+## Testing
+
+See **[test/HOWTO_TEST.md](test/HOWTO_TEST.md)** for the full test guide.
+
+**Prerequisites**: Launch the Extension Development Host with **F5** in VS Code.
+
+```bash
+# Run all automated tests
+node test/suite.js
+
+# Quick automated smoke test (no source modification)
+node test/test_auto.js
+
+# Interactive CLI tool
+node test/test.js find "IStubService" --include=test/src/**/*.ts
+node test/test.js sym test/src/App.tsx
+node test/test.js history test/src/stub.ts
+```
+
+---
+
+## Status Bar
+
+The status bar item (bottom-right) shows server state:
+
+- `$(radio-tower) IDEA :7200 (2)` — running on port 7200, 2 clients connected
+- `$(debug-disconnect) IDEA (stopped)` — server not running
+
+Click to toggle the server on/off.
+
+---
+
+## More
+
+- [Protocol specification (Input)](docs/IDEA_InputProtocol.md)
+- [Protocol specification (Output)](docs/IDEA_OutputProtocol.md)
+- [Changelog](CHANGELOG.md)
+- [한국어 README](docs/README_ko.md)

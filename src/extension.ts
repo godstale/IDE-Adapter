@@ -10,6 +10,14 @@ import { DefinitionHandler } from './handlers/DefinitionHandler.js';
 import { ReferencesHandler } from './handlers/ReferencesHandler.js';
 import { DiagnosticHandler } from './handlers/DiagnosticHandler.js';
 import { SymbolHandler } from './handlers/SymbolHandler.js';
+import { FileHistoryHandler } from './handlers/FileHistoryHandler.js';
+import { FileDiffHandler } from './handlers/FileDiffHandler.js';
+import { FileSearchHandler } from './handlers/FileSearchHandler.js';
+import { FileRollbackHandler } from './handlers/FileRollbackHandler.js';
+import { LocalHistoryService } from './handlers/LocalHistoryService.js';
+import { LocalHistoryListHandler } from './handlers/LocalHistoryListHandler.js';
+import { LocalHistoryDiffHandler } from './handlers/LocalHistoryDiffHandler.js';
+import { LocalHistoryRollbackHandler } from './handlers/LocalHistoryRollbackHandler.js';
 import { AuthConfig } from './protocol/types.js';
 
 let server: IdeaServer | null = null;
@@ -36,6 +44,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registry.register('/app/vscode/nav/references',  new ReferencesHandler());
   registry.register('/app/vscode/diag/list',        new DiagnosticHandler());
   registry.register('/app/vscode/nav/symbols',      new SymbolHandler());
+  registry.register('/app/vscode/history/list',     new FileHistoryHandler());
+  registry.register('/app/vscode/history/diff',     new FileDiffHandler());
+  registry.register('/app/vscode/fs/findFiles',     new FileSearchHandler());
+  registry.register('/app/vscode/history/rollback', new FileRollbackHandler());
+
+  // Local History handlers
+  const localHistorySvc = new LocalHistoryService(context.globalStorageUri.fsPath);
+  registry.register('/app/vscode/localhistory/list',     new LocalHistoryListHandler(localHistorySvc));
+  registry.register('/app/vscode/localhistory/diff',     new LocalHistoryDiffHandler(localHistorySvc));
+  registry.register('/app/vscode/localhistory/rollback', new LocalHistoryRollbackHandler(localHistorySvc));
 
   // Auth config
   const authConfig = await getOrCreateAuthConfig();
