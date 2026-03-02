@@ -31,11 +31,44 @@ External CLI / AI Agent
   └─────────────────────────────┘
 ```
 
+> **Using with Claude Code?**
+> To use IDEA with Claude Code (or any Claude AI agent), you must also install the **[IDE Adapter Skill](https://github.com/godstale/IDE-Adapter-Skill)**. The skill acts as the protocol bridge between the AI agent and this extension — **the extension alone is not enough**.
+
+---
+
+## Quick Install
+
+Get up and running in two commands.
+
+**Step 1 — VS Code Extension**
+
+```bash
+code --install-extension godstale.ide-adapter
+```
+
+**Step 2 — IDE Adapter Skill** (Claude Code users)
+
+```bash
+git clone https://github.com/godstale/IDE-Adapter-Skill ~/.claude/skills/ide-adapter-skill
+```
+
+Once both are installed, open VS Code — the WebSocket server starts automatically. Claude Code will detect the skill and use it to communicate with the extension.
+
+> For detailed skill setup and usage, see the **[IDE Adapter Skill repository](https://github.com/godstale/IDE-Adapter-Skill)**.
+
 ---
 
 ## Installation
 
-### From VSIX (recommended)
+### From VS Code Marketplace (recommended)
+
+Search for **"IDEA Adapter"** in the VS Code Extensions panel, or install via CLI:
+
+```bash
+code --install-extension godstale.ide-adapter
+```
+
+### From VSIX
 
 1. Download the latest `.vsix` file from [Releases](https://github.com/godstale/IDE-Adapter/releases)
 2. In VS Code: **Extensions** → `...` menu → **Install from VSIX...**
@@ -192,6 +225,7 @@ Click to toggle the server on/off.
 
 ## More
 
+- [IDE Adapter Skill (Claude Code)](https://github.com/godstale/IDE-Adapter-Skill)
 - [Protocol specification (Input)](docs/IDEA_InputProtocol.md)
 - [Protocol specification (Output)](docs/IDEA_OutputProtocol.md)
 - [Changelog](CHANGELOG.md)

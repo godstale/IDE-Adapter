@@ -4,6 +4,7 @@
   "description": "Exposes VS Code IDE features to external CLI apps via WebSocket",
   "version": "0.1.6",
   "publisher": "godstale",
+  "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
