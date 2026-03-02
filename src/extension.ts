@@ -145,6 +145,8 @@ async function startServer(overridePort?: number): Promise<void> {
   server.updateAuthConfig(authConfig);
   try {
     await server.start(port);
+    // 실제 바인딩된 포트를 workspace settings에 저장 (외부 클라이언트가 읽을 수 있도록)
+    await config.update('port', server.port, vscode.ConfigurationTarget.Workspace);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     vscode.window.showErrorMessage(`IDEA: Failed to start server: ${msg}`);
