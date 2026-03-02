@@ -55,6 +55,27 @@ See [`docs/IDEA_InputProtocol.md`](docs/IDEA_InputProtocol.md) and [`docs/IDEA_O
 | `/app/vscode/diag/list` | List diagnostics (errors/warnings) for a file or workspace |
 | `/app/vscode/nav/symbols` | List symbols (functions, classes, interfaces, etc.) in a file |
 
+## Testing
+
+`test/` 폴더를 워크스페이스에 복사하면 어디서든 테스트할 수 있습니다.
+
+**사전 준비**: VS Code에서 **F5**로 Extension Development Host 실행
+
+포트와 인증 토큰은 `.vscode/settings.json`에서 자동으로 읽어옵니다.
+
+```bash
+# 전체 자동화 테스트 (모든 핸들러 검증)
+node test/suite.js
+
+# 대화형 CLI 도구
+node test/test.js sym test/src/stub.ts
+node test/test.js find "IStubService" --include=test/src/**/*.ts
+node test/test.js def "IStubService" --include=test/src/**/*.ts
+node test/test.js diag test/src/stub.ts
+```
+
+네비게이션 테스트는 `test/src/stub.ts`의 고정된 심볼 위치를 사용하므로 어느 워크스페이스에서나 동작합니다.
+
 ## Development
 
 ```bash
