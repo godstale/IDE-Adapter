@@ -42,12 +42,12 @@ export class IdeaServer {
 
   private tryBind(port: number): Promise<boolean> {
     return new Promise((resolve) => {
-      const wss = new WebSocketServer({ port });
+      const wss = new WebSocketServer({ port, host: '127.0.0.1' });
 
       wss.on('listening', () => {
         this.wss = wss;
         this._port = port;
-        console.log(`[IdeaServer] Listening on ws://localhost:${port}`);
+        console.log(`[IdeaServer] Listening on ws://127.0.0.1:${port}`);
         this.logger.logServerStart(port);
         this.attachConnectionHandler(wss);
         this.onStatusChange(port, 0);

@@ -133,8 +133,8 @@
 
 ### Feature 2: 토큰 인증 (Auth/Security)
 - [x] `src/protocol/types.ts` — `AuthConfig` 인터페이스 추가, `ClientHandshake.token?`, `ServerHandshake.authRequired` 추가
-- [x] `package.json` — `idea.server.authEnabled` (global, default: true), `idea.server.authToken` (workspace, default: "") 설정 추가
-- [x] `src/extension.ts` — `getOrCreateAuthConfig()` 헬퍼 (UUID 자동 생성 + workspace 설정 저장), `IdeaServer`/`IdeaPanel`에 AuthConfig 전달
+- [x] `package.json` — `idea.server.authEnabled` (global, default: true), `idea.server.authToken` 설정 추가
+- [x] `src/extension.ts` — `getOrCreateAuthConfig()` 헬퍼 (UUID 자동 생성 + 토큰 저장), `IdeaServer`/`IdeaPanel`에 AuthConfig 전달
 - [x] `src/server/IdeaServer.ts` — 생성자에 `AuthConfig` 추가, `updateAuthConfig()` 메서드 추가, ClientSession에 AuthConfig 전달
 - [x] `src/session/ClientSession.ts` — 핸드셰이크에서 token 검증, UNAUTHORIZED 에러 응답, VERSION → '0.1.3'
 - [x] `src/panel/IdeaPanel.ts` — Settings탭에 "인증" 섹션 UI 추가 (toggle, token 표시, 복사, 재생성 버튼)
@@ -151,10 +151,10 @@
 ## Token Expose Toggle — 2026-03-02
 
 `idea.server.exposeToken` 설정 추가: 인증 토큰의 `.vscode/settings.json` 노출 여부 제어.
-- `exposeToken=true` (기본): 토큰을 Global + Workspace 모두 저장 (기존 동작 유지)
-- `exposeToken=false` (보안 모드): 토큰을 Global에만 저장, Workspace에서 항목 제거
+- v0.1.3 당시 `exposeToken=true`가 기본이었으며 토큰을 Global + Workspace 모두 저장했다.
+- 현재 기본값은 `exposeToken=false`이며 토큰을 Global에만 저장하고 Workspace에서 항목을 제거한다.
 
-- [x] `package.json` — `idea.server.exposeToken` 설정 추가 (boolean, default: true)
+- [x] `package.json` — `idea.server.exposeToken` 설정 추가 (boolean; 현재 default: false)
 - [x] `src/extension.ts` — `getOrCreateAuthConfig()` 수정: 항상 Global 저장, exposeToken=true 시에만 Workspace 저장
 - [x] `src/extension.ts` — 토큰 재생성 콜백: exposeToken 존중
 - [x] `src/extension.ts` — `onApplyExposeToken` 콜백 구현

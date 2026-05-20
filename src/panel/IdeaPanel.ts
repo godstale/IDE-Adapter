@@ -53,7 +53,7 @@ export class IdeaPanel {
               entries: this.logger.getAll().map(serializeEntry),
             });
             const serverConfig = vscode.workspace.getConfiguration('idea.server');
-            this.postMessage({ type: 'serverSettings', autoStart: serverConfig.get<boolean>('autoStart', true) });
+            this.postMessage({ type: 'serverSettings', autoStart: serverConfig.get<boolean>('autoStart', false) });
             const panelConfig = vscode.workspace.getConfiguration('idea.panel');
             this.postMessage({ type: 'panelSettings', autoOpen: panelConfig.get<boolean>('autoOpen', false) });
             const authConfig = await this.onGetAuthSettings();
@@ -61,7 +61,7 @@ export class IdeaPanel {
               type: 'authSettings',
               enabled: authConfig.enabled,
               token: authConfig.token,
-              exposeToken: serverConfig.get<boolean>('exposeToken', true),
+              exposeToken: serverConfig.get<boolean>('exposeToken', false),
             });
             break;
           }
@@ -97,7 +97,7 @@ export class IdeaPanel {
               type: 'authSettings',
               enabled: true,
               token: newToken,
-              exposeToken: regen_cfg.get<boolean>('exposeToken', true),
+              exposeToken: regen_cfg.get<boolean>('exposeToken', false),
             });
             break;
           }
@@ -342,7 +342,7 @@ export class IdeaPanel {
       <button class="btn secondary" id="btn-regen-token">재생성</button>
     </div>
     <div class="row" id="row-expose-token" style="display:none;">
-      <input type="checkbox" id="chk-expose-token" checked>
+      <input type="checkbox" id="chk-expose-token">
       <label class="label" for="chk-expose-token">settings.json 에 노출 (CLI 자동 인식)</label>
     </div>
   </div>
@@ -456,7 +456,7 @@ export class IdeaPanel {
   function applyAuthSettings(enabled, token, exposeToken) {
     document.getElementById('chk-auth-enabled').checked = enabled;
     document.getElementById('token-display').value = token || '';
-    document.getElementById('chk-expose-token').checked = exposeToken !== false;
+    document.getElementById('chk-expose-token').checked = exposeToken === true;
     applyAuthRowVisibility(enabled);
   }
 

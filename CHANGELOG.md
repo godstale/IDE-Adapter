@@ -9,6 +9,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documentation
+- Clarified historical token-storage notes: current secure default keeps `idea.server.exposeToken=false`; writing the auth token to workspace `.vscode/settings.json` is explicit opt-in.
+
 ---
 
 ## [0.1.6] — 2026-03-02
@@ -96,15 +99,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 - **포트 자동 증가**: 포트 충돌(EADDRINUSE) 시 자동으로 다음 포트 시도 (최대 10회). 여러 VS Code 창에서 동시 사용 가능 (7200, 7201, ...).
-- **토큰 인증**: `idea.server.authEnabled` (전역, 기본값: `true`), `idea.server.authToken` (워크스페이스) 설정 추가.
-  - 인증 활성화 시 UUID v4 토큰 자동 생성, `.vscode/settings.json`에 저장.
+- **토큰 인증**: `idea.server.authEnabled` (전역, 기본값: `true`), `idea.server.authToken` 설정 추가.
+  - v0.1.3 당시 인증 활성화 시 UUID v4 토큰을 자동 생성하고 workspace `.vscode/settings.json`에 저장.
+  - 현재 기본 동작은 VS Code User 전역 설정에만 저장하며, workspace 저장은 `idea.server.exposeToken=true`일 때만 명시적으로 허용.
   - 핸드셰이크에 `token` 필드 추가 (인증 활성화 시 필수).
   - 핸드셰이크 응답에 `authRequired: boolean` 추가.
   - 새 에러코드: `UNAUTHORIZED`.
 - **Settings UI 인증 섹션**: 토큰 인증 토글, 토큰 표시, 복사/재생성 버튼.
-- **Token Expose Toggle**: `idea.server.exposeToken` 설정 추가 (기본값: `true`).
-  - `true`: 토큰을 Global + `.vscode/settings.json` 모두 저장 (기존 동작 유지).
-  - `false`: 토큰을 VS Code User 전역 설정에만 저장, 워크스페이스 파일에서 항목 제거 (보안 강화).
+- **Token Expose Toggle**: `idea.server.exposeToken` 설정 추가.
+  - v0.1.3 당시 `true`: 토큰을 Global + `.vscode/settings.json` 모두 저장 (기존 동작 유지).
+  - 현재 기본값은 `false`: 토큰을 VS Code User 전역 설정에만 저장, 워크스페이스 파일에서 항목 제거 (보안 강화).
   - Settings UI에 "settings.json에 노출" 체크박스 추가.
 
 ### Changed

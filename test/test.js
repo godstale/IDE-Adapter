@@ -244,7 +244,7 @@ function parseArgs(defaultPort = 7200) {
 
 function connect(port, token = '') {
   return new Promise((resolve, reject) => {
-    const url = `ws://localhost:${port}`;
+    const url = `ws://127.0.0.1:${port}`;
     const ws = new WebSocket(url);
 
     const timer = setTimeout(() => {
@@ -281,7 +281,7 @@ function connect(port, token = '') {
     ws.on('error', (err) => {
       clearTimeout(timer);
       reject(new Error(
-        `Cannot connect to ws://localhost:${port} — ${err.message}\n` +
+        `Cannot connect to ws://127.0.0.1:${port} — ${err.message}\n` +
         `Is the IDE Adapter extension running?`
       ));
     });
@@ -790,7 +790,8 @@ Examples:
   node test/test.js lhrollback test/src/stub.ts IOCb.ts
 
 Note:
-  Port and auth token are read automatically from .vscode/settings.json.
+  Port is read automatically from .vscode/settings.json.
+  Auth token is read from IDEA_SERVER_TOKEN first, or from .vscode/settings.json when exposeToken is enabled.
   Use --port=<n> to override the port.
 `.trim());
 }
@@ -800,7 +801,7 @@ Note:
 async function main() {
   const settings    = readWorkspaceSettings();
   const defaultPort = parseInt(settings['idea.server.port'] ?? '7200', 10);
-  const token       = settings['idea.server.authToken'] ?? '';
+  const token       = process.env.IDEA_SERVER_TOKEN ?? settings['idea.server.authToken'] ?? '';
 
   const { topic, pattern, replacement, filePath, filePaths, toIndex, toId, opts } = parseArgs(defaultPort);
 
@@ -810,7 +811,7 @@ async function main() {
   } catch (err) {
     console.error(red(`✗ ${err.message}`));
     if (err.message.includes('UNAUTHORIZED')) {
-      console.error(red('  Check that idea.server.authToken in .vscode/settings.json is correct.'));
+      console.error(red('  Set IDEA_SERVER_TOKEN, or enable exposeToken and check idea.server.authToken in .vscode/settings.json.'));
     }
     process.exit(1);
   }

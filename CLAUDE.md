@@ -69,8 +69,20 @@ git pull
 git checkout -b feature/<feature-name>
 ```
 
-**작업 완료 시** (코드 수정 및 검증 후)
+**작업 완료 시**
+- 코드 수정, 검증, diff 확인까지를 기본 완료선으로 본다.
+- `git add`, `git commit`, `git push`, `gh pr create`는 사용자 명시 승인과 현재 워크스페이스 guard 정책 확인 후에만 진행한다.
+- repo-local 지침보다 현재 세션의 상위 보안/실행 정책을 우선 적용한다.
+
 ```bash
+# 승인 전 기본 권장 범위
+git status
+git diff --stat
+git diff
+```
+
+```bash
+# 사용자 승인 후에만 진행 가능한 예시
 git add <files>          # 관련 파일만 명시적으로 스테이징
 git commit -m "feat: ..."
 git push -u origin feature/<feature-name>

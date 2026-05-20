@@ -65,7 +65,7 @@
         },
         "idea.server.autoStart": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Automatically start the IDEA server when VS Code opens"
         },
         "idea.panel.autoOpen": {
@@ -81,11 +81,11 @@
         "idea.server.authToken": {
           "type": "string",
           "default": "",
-          "description": "Auth token (UUID, auto-generated). Stored in workspace .vscode/settings.json for external client access."
+          "description": "Auth token (UUID, auto-generated). Stored in VS Code user settings by default; written to workspace .vscode/settings.json only when exposeToken is enabled."
         },
         "idea.server.exposeToken": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Save the auth token to .vscode/settings.json for external client access. Disable for enhanced security (token stored in VS Code user settings only, not in the workspace file)."
         }
       }

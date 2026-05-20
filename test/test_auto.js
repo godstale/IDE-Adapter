@@ -10,7 +10,7 @@
  *
  * Prerequisites:
  *   - VS Code Extension Development Host running (F5)
- *   - npm install done in project root
+ *   - npm ci done in project root
  */
 'use strict';
 
@@ -34,7 +34,7 @@ function readWorkspaceSettings() {
 
 const settings = readWorkspaceSettings();
 const PORT = parseInt(process.argv[2] ?? settings['idea.server.port'] ?? '7200', 10);
-const TOKEN = settings['idea.server.authToken'] ?? '';
+const TOKEN = process.env.IDEA_SERVER_TOKEN ?? settings['idea.server.authToken'] ?? '';
 
 const ROOT = path.join(__dirname, '..');
 
@@ -64,7 +64,7 @@ const TIMEOUT_MS = 10000;
 
 async function connect() {
   await new Promise((resolve, reject) => {
-    ws = new WebSocket(`ws://localhost:${PORT}`);
+    ws = new WebSocket(`ws://127.0.0.1:${PORT}`);
     ws.on('error', reject);
     ws.on('open', resolve);
   });
@@ -130,7 +130,7 @@ function section(name) {
 
 async function main() {
   console.log(bold(`\nIDEA Adapter — Quick Smoke Test`));
-  console.log(gray(`  Port: ${PORT}  |  Token: ${TOKEN ? TOKEN.slice(0, 8) + '...' : '(none)'}\n`));
+  console.log(gray(`  Port: ${PORT}  |  Auth token: ${TOKEN ? 'provided' : '(none)'}\n`));
 
   // Connect
   process.stdout.write('  Connecting to WebSocket server ... ');

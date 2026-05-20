@@ -17,7 +17,7 @@ WebSocket 연결 직후 CLI가 반드시 먼저 전송해야 한다.
 클라이언트는 응답에서 사용 가능한 워크스페이스를 확인하고 계속 진행할지 결정한다.
 
 서버에서 `authRequired: true`로 응답한 경우, 이후 요청은 토큰 없이 거부된다.
-따라서 `.vscode/settings.json`의 `idea.server.authToken` 값을 핸드셰이크 시 포함해야 한다.
+따라서 IDEA 사이드바 패널에 표시된 토큰이나 `idea.server.exposeToken`을 켠 경우의 `.vscode/settings.json` 내 `idea.server.authToken` 값을 핸드셰이크 시 포함해야 한다.
 
 ```json
 {
@@ -29,7 +29,7 @@ WebSocket 연결 직후 CLI가 반드시 먼저 전송해야 한다.
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `type` | `"handshake"` | 고정값 |
-| `token` | `string` | 인증 토큰. 서버의 `authRequired`가 true일 때 필수. `.vscode/settings.json`의 `idea.server.authToken` 값 |
+| `token` | `string` | 인증 토큰. 서버의 `authRequired`가 true일 때 필수. 기본값으로는 IDEA 사이드바 패널에서 확인하며, `idea.server.exposeToken`을 켠 경우에는 `.vscode/settings.json`의 `idea.server.authToken` 값도 사용할 수 있음 |
 
 ---
 

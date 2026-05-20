@@ -26,7 +26,7 @@ This file provides instructional context and an overview of the IDEA (IDE Adapte
 - npm
 
 **Commands:**
-- **Install dependencies:** `npm install`
+- **Install dependencies:** `npm ci`
 - **Compile (TypeScript build to `out/`):** `npm run compile`
 - **Watch mode (Incremental build):** `npm run watch`
 - **Lint (ESLint):** `npm run lint`

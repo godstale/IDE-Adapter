@@ -17,7 +17,7 @@ IDEA is a VS Code extension that starts a local WebSocket server (default port *
 
 ```
 External CLI / AI Agent
-        │  WebSocket (ws://localhost:7200)
+        │  WebSocket (ws://127.0.0.1:7200)
         ▼
   ┌─────────────────────────────┐
   │  IDEA VS Code Extension     │
@@ -52,7 +52,7 @@ code --install-extension godstale.ide-adapter
 git clone https://github.com/godstale/IDE-Adapter-Skill ~/.claude/skills/ide-adapter-skill
 ```
 
-Once both are installed, open VS Code — the WebSocket server starts automatically. Claude Code will detect the skill and use it to communicate with the extension.
+Once both are installed, open VS Code and start the WebSocket server from the IDEA sidebar or the `IDEA: Toggle Server` command. Claude Code will detect the skill and use it to communicate with the extension.
 
 > For detailed skill setup and usage, see the **[IDE Adapter Skill repository](https://github.com/godstale/IDE-Adapter-Skill)**.
 
@@ -79,7 +79,7 @@ code --install-extension godstale.ide-adapter
 ```bash
 git clone https://github.com/godstale/IDE-Adapter.git
 cd IDE-Adapter
-npm install
+npm ci
 npm run compile
 # Press F5 in VS Code to launch Extension Development Host
 ```
@@ -95,7 +95,7 @@ vsce package
 
 ## Quick Start
 
-Once installed, the WebSocket server starts automatically on port **7200**.
+By default, the WebSocket server does **not** auto-start. Start it from the IDEA sidebar or the `IDEA: Toggle Server` command. The default base port is **7200**.
 
 ### 1. Connect and handshake
 
@@ -103,8 +103,8 @@ Once installed, the WebSocket server starts automatically on port **7200**.
 # Install wscat if needed
 npm install -g wscat
 
-# Connect (with auth token from .vscode/settings.json)
-wscat -c ws://localhost:7200
+# Connect (with the auth token shown in the IDEA sidebar panel)
+wscat -c ws://127.0.0.1:7200
 > {"type":"handshake","token":"your-uuid-token"}
 < {"type":"handshake","version":"0.1.6","authRequired":true,"capabilities":[...]}
 ```
@@ -137,13 +137,15 @@ wscat -c ws://localhost:7200
 }
 ```
 
-> **Multiple VS Code windows**: If you open multiple windows, each window gets its own port (7200, 7201, …). The actual port is saved to `.vscode/settings.json` automatically.
+> **Multiple VS Code windows**: If you open multiple windows, each window gets its own port (7200, 7201, …). The actual port is saved to `.vscode/settings.json` automatically. The auth token is only saved there when `idea.server.exposeToken` is enabled.
 
 ---
 
 ## Authentication
 
-When auth is enabled (default), a UUID token is auto-generated and stored in `.vscode/settings.json`:
+When auth is enabled (default), a UUID token is auto-generated and stored in VS Code settings. By default, it is managed through the IDEA sidebar panel and is **not** written to `.vscode/settings.json`.
+
+If you explicitly enable `idea.server.exposeToken`, the token is also written to `.vscode/settings.json`:
 
 ```json
 {
@@ -183,10 +185,10 @@ Full message format: [`docs/IDEA_InputProtocol.md`](docs/IDEA_InputProtocol.md) 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `idea.server.port` | `7200` | Base port (auto-increments on conflict) |
-| `idea.server.autoStart` | `true` | Start server when VS Code opens |
+| `idea.server.autoStart` | `false` | Start server when VS Code opens |
 | `idea.server.authEnabled` | `true` | Enable token authentication |
 | `idea.server.authToken` | `""` | Auth token (UUID, auto-generated) |
-| `idea.server.exposeToken` | `true` | Save token to `.vscode/settings.json` |
+| `idea.server.exposeToken` | `false` | Save token to `.vscode/settings.json` |
 | `idea.panel.autoOpen` | `false` | Open IDEA panel on VS Code startup |
 
 ---

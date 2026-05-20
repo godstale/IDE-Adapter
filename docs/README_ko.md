@@ -17,7 +17,7 @@ IDEA는 VS Code 확장 프로그램으로, 로컬 WebSocket 서버(기본 포트
 
 ```
 외부 CLI / AI 에이전트
-        │  WebSocket (ws://localhost:7200)
+        │  WebSocket (ws://127.0.0.1:7200)
         ▼
   ┌─────────────────────────────┐
   │  IDEA VS Code Extension     │
@@ -46,7 +46,7 @@ IDEA는 VS Code 확장 프로그램으로, 로컬 WebSocket 서버(기본 포트
 ```bash
 git clone https://github.com/godstale/IDE-Adapter.git
 cd IDE-Adapter
-npm install
+npm ci
 npm run compile
 # VS Code에서 F5 키로 Extension Development Host 실행
 ```
@@ -62,7 +62,7 @@ vsce package
 
 ## 빠른 시작
 
-설치 후 WebSocket 서버가 포트 **7200**에서 자동으로 시작됩니다.
+기본값으로 WebSocket 서버는 자동 시작되지 않습니다. IDEA 사이드바 또는 `IDEA: Toggle Server` 명령으로 직접 시작하세요. 기본 포트 기준값은 **7200**입니다.
 
 ### 1. 접속 및 핸드셰이크
 
@@ -70,8 +70,8 @@ vsce package
 # wscat 설치 (없는 경우)
 npm install -g wscat
 
-# 접속 (.vscode/settings.json의 인증 토큰 사용)
-wscat -c ws://localhost:7200
+# 접속 (IDEA 사이드바 패널에 표시된 인증 토큰 사용)
+wscat -c ws://127.0.0.1:7200
 > {"type":"handshake","token":"your-uuid-token"}
 < {"type":"handshake","version":"0.1.6","authRequired":true,"capabilities":[...]}
 ```
@@ -104,13 +104,15 @@ wscat -c ws://localhost:7200
 }
 ```
 
-> **VS Code 창 여러 개 실행 시**: 각 창의 서버가 7200, 7201, … 순으로 자동 배정됩니다. 실제 포트는 `.vscode/settings.json`에 자동 저장됩니다.
+> **VS Code 창 여러 개 실행 시**: 각 창의 서버가 7200, 7201, … 순으로 자동 배정됩니다. 실제 포트는 `.vscode/settings.json`에 자동 저장됩니다. 인증 토큰은 `idea.server.exposeToken`을 켠 경우에만 여기에 저장됩니다.
 
 ---
 
 ## 인증
 
-인증이 활성화(기본값)되면 UUID 토큰이 자동 생성되어 `.vscode/settings.json`에 저장됩니다:
+인증이 활성화(기본값)되면 UUID 토큰이 자동 생성되어 VS Code 설정에 저장됩니다. 기본값으로는 IDEA 사이드바 패널을 통해 관리되며, `.vscode/settings.json`에는 기록되지 않습니다.
+
+`idea.server.exposeToken`을 명시적으로 켠 경우에만 토큰이 `.vscode/settings.json`에도 저장됩니다:
 
 ```json
 {
@@ -150,10 +152,10 @@ wscat -c ws://localhost:7200
 | 설정 | 기본값 | 설명 |
 |---------|---------|-------------|
 | `idea.server.port` | `7200` | 기본 포트 (충돌 시 자동 증가) |
-| `idea.server.autoStart` | `true` | VS Code 시작 시 서버 자동 실행 |
+| `idea.server.autoStart` | `false` | VS Code 시작 시 서버 자동 실행 |
 | `idea.server.authEnabled` | `true` | 토큰 인증 활성화 |
 | `idea.server.authToken` | `""` | 인증 토큰 (UUID, 자동 생성) |
-| `idea.server.exposeToken` | `true` | `.vscode/settings.json`에 토큰 저장 |
+| `idea.server.exposeToken` | `false` | `.vscode/settings.json`에 토큰 저장 |
 | `idea.panel.autoOpen` | `false` | VS Code 시작 시 IDEA 패널 자동 열기 |
 
 ---

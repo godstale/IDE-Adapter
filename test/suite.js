@@ -5,7 +5,8 @@
  * Usage:
  *   node test/suite.js [port]       (default: .vscode/settings.json → idea.server.port → 7200)
  *
- * 포트와 인증 토큰은 .vscode/settings.json에서 자동으로 읽어옵니다.
+ * 포트는 .vscode/settings.json에서 자동으로 읽어옵니다.
+ * 인증 토큰은 IDEA_SERVER_TOKEN 환경변수를 우선 사용하고, exposeToken을 켠 경우에만 .vscode/settings.json에서 읽어옵니다.
  * 네비게이션 테스트는 test/src/stub.ts를 사용하므로 어느 워크스페이스에서도 동작합니다.
  *
  * Prerequisite:
@@ -37,7 +38,7 @@ function readWorkspaceSettings() {
 
 const settings = readWorkspaceSettings();
 const PORT  = parseInt(process.argv[2] ?? settings['idea.server.port'] ?? '7200', 10);
-const TOKEN = settings['idea.server.authToken'] ?? '';
+const TOKEN = process.env.IDEA_SERVER_TOKEN ?? settings['idea.server.authToken'] ?? '';
 
 // 테스트에 사용할 소스 파일 (test/src/ — VS Code에서 직접 확인 가능)
 //
@@ -64,7 +65,7 @@ let   noIdResolve = null;        // requestId가 없는 응답용 one-shot 콜�
 async function connectAndHandshake() {
   // 연결
   await new Promise((resolve, reject) => {
-    ws = new WebSocket(`ws://localhost:${PORT}`);
+    ws = new WebSocket(`ws://127.0.0.1:${PORT}`);
     ws.on('error', reject);
     ws.on('open', resolve);
   });
@@ -199,8 +200,8 @@ async function main() {
   // 연결
   let hs;
   try {
-    const portInfo = TOKEN ? `${PORT} (token: ${TOKEN.slice(0,8)}...)` : `${PORT} (no auth)`;
-    console.log(`\n[suite] Connecting to ws://localhost:${portInfo} ...`);
+    const portInfo = TOKEN ? `${PORT} (auth token provided)` : `${PORT} (no auth token)`;
+    console.log(`\n[suite] Connecting to ws://127.0.0.1:${portInfo} ...`);
     hs = await connectAndHandshake();
     console.log(`[suite] Handshake OK  version=${hs.version}  authRequired=${hs.authRequired}`);
     console.log(`[suite] Capabilities: ${hs.capabilities.join(', ') || '(none)'}`);
@@ -215,7 +216,7 @@ async function main() {
     console.error(`\n[suite] Connection failed: ${err.message}`);
     console.error('        Extension Development Host 가 실행 중인지 확인하세요 (F5).');
     if (!TOKEN) {
-      console.error('        .vscode/settings.json 에서 idea.server.authToken 을 확인하세요.');
+      console.error('        IDEA_SERVER_TOKEN 환경변수를 지정하거나, exposeToken을 켠 뒤 .vscode/settings.json 의 idea.server.authToken 을 확인하세요.');
     }
     process.exit(1);
   }

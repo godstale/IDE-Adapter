@@ -3,16 +3,20 @@
 ## 사전 준비
 
 1. VS Code에서 **F5** 키로 **Extension Development Host** 실행
-2. 서버가 시작되면 포트와 인증 토큰이 `.vscode/settings.json`에 자동 저장됩니다:
+2. 서버가 시작되면 포트는 `.vscode/settings.json`에 자동 저장됩니다. 인증 토큰은 기본값으로 워크스페이스 파일에 저장되지 않으며, 사이드바 패널에서 복사하거나 `idea.server.exposeToken`을 켠 경우에만 `.vscode/settings.json`에 저장됩니다:
    ```json
    {
      "idea.server.port": 7200,
      "idea.server.authToken": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
    }
    ```
-3. `test/` 폴더에서 `npm install` 실행 (ws 패키지 필요)
+3. 워크스페이스 루트(`IDE-Adapter/`)에서 `npm ci` 실행 (lockfile 기준 의존성 설치)
+4. 기본 보안 설정에서는 테스트 실행 전에 토큰을 환경변수로 넘깁니다:
+   ```bash
+   IDEA_SERVER_TOKEN="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" node test/suite.js
+   ```
 
-> **포트와 토큰은 자동 감지됩니다.** 별도 인수 없이 실행해도 `.vscode/settings.json`을 읽어 접속합니다.
+> **포트는 자동 감지됩니다.** 토큰은 `IDEA_SERVER_TOKEN`을 우선 사용하고, `idea.server.exposeToken`을 켠 경우에만 `.vscode/settings.json`에서 자동 감지됩니다.
 
 ---
 
@@ -167,11 +171,11 @@ node test/test.js find "IStubService" --port=7201 --include=test/src/**/*.ts
 ## 다른 워크스페이스에서 사용하기
 
 1. `test/` 폴더 전체를 타겟 워크스페이스에 복사
-2. 워크스페이스 루트에서 `npm install` 실행
+2. 워크스페이스 루트에서 `npm ci` 실행
 3. VS Code에서 해당 워크스페이스를 열고 **F5** 실행
-4. `.vscode/settings.json`이 자동 생성되면 아래 명령어로 테스트:
+4. 포트가 `.vscode/settings.json`에 자동 생성되면 토큰을 환경변수로 지정해 테스트:
 
 ```bash
-node test/suite.js
-node test/test_auto.js
+IDEA_SERVER_TOKEN="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" node test/suite.js
+IDEA_SERVER_TOKEN="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" node test/test_auto.js
 ```

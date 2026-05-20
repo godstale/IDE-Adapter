@@ -98,7 +98,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     async () => {
       const newToken = crypto.randomUUID();
       const config = vscode.workspace.getConfiguration('idea.server');
-      const exposeToken = config.get<boolean>('exposeToken', true);
+      const exposeToken = config.get<boolean>('exposeToken', false);
       await config.update('authToken', newToken, vscode.ConfigurationTarget.Global);
       if (exposeToken) {
         await config.update('authToken', newToken, vscode.ConfigurationTarget.Workspace);
@@ -137,7 +137,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Auto-start server
   const config = vscode.workspace.getConfiguration('idea.server');
-  if (config.get<boolean>('autoStart', true)) {
+  if (config.get<boolean>('autoStart', false)) {
     await startServer();
   } else {
     updateStatusBarStopped();
@@ -162,7 +162,7 @@ export async function deactivate(): Promise<void> {
 async function getOrCreateAuthConfig(): Promise<AuthConfig> {
   const config = vscode.workspace.getConfiguration('idea.server');
   const enabled = config.get<boolean>('authEnabled', true);
-  const exposeToken = config.get<boolean>('exposeToken', true);
+  const exposeToken = config.get<boolean>('exposeToken', false);
   let token = config.get<string>('authToken', '');
 
   if (enabled && token.trim() === '') {
